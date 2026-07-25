@@ -1,0 +1,261 @@
+/* src/pages/PainelCozinha.css */
+
+.cozinha-container {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 1.5rem;
+}
+
+.cozinha-header {
+  background-color: #16a34a;
+  color: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.cozinha-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.cozinha-card {
+  background-color: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.secao-alunos {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px dashed #e5e7eb;
+}
+
+.secao-alunos label {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
+.input-grande {
+  width: 100%;
+  font-size: 1.5rem;
+  padding: 1rem;
+  border: 2px solid #93c5fd;
+  border-radius: 0.75rem;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.lista-ingredientes {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.ingrediente-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f9fafb;
+  padding: 1rem 1.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.ingrediente-nome {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.ingrediente-controles {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.input-qtd {
+  width: 80px;
+  font-size: 1.25rem;
+  padding: 0.5rem;
+  text-align: center;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+}
+
+.ingrediente-medida {
+  font-size: 1.1rem;
+  color: #6b7280;
+  min-width: 120px;
+}
+
+.btn-finalizar {
+  width: 100%;
+  background-color: #16a34a;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  padding: 1.25rem;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.btn-finalizar:hover {
+  background-color: #15803d;
+}
+
+.dashboard-inicial {
+  text-align: center;
+  padding: 4rem 2rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.dashboard-inicial h2 {
+  color: #4b5563;
+  margin-bottom: 2rem;
+}
+
+.btn-novo {
+  background-color: #2563eb;
+  color: white;
+  font-size: 1.25rem;
+  font-weight: bold;
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+  transition: background-color 0.2s;
+}
+
+.btn-novo:hover {
+  background-color: #1d4ed8;
+}
+
+/* Estilos do Modal (Janela Flutuante) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #f3f4f6;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #1f2937;
+}
+
+.btn-fechar {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+.btn-fechar:hover {
+  color: #ef4444;
+}
+
+.select-refeicao {
+  width: 100%;
+  font-size: 1.25rem;
+  padding: 1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+  color: #374151;
+  background-color: #f9fafb;
+}
+
+.select-refeicao:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.cardapio-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 1rem 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.prato-titulo {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #166534;
+  font-weight: bold;
+}
+
+.prato-subtitulo {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #15803d;
+  margin-top: 0.25rem;
+}
+
+.btn-mudar {
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.btn-mudar:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
