@@ -1,7 +1,8 @@
 ---
 phase: 5
 slug: p-ginas-admin-frontend
-status: draft
+status: approved
+reviewed_at: 2026-08-01
 shadcn_initialized: false
 preset: none
 created: 2026-08-01
@@ -47,7 +48,7 @@ Declared values (multiples of 4; implemented as rem — `1rem = 16px` — matchi
 
 Exceptions:
 - **Border radius** `--raio` = 8px; modal/large-card radius = 12px (form tokens, not spacing).
-- **Badge pill padding** `3px 9px` exists in `Layout.css` (legacy Phase 4, sidebar only) — do not retrofit; **new** badges in admin pages use `4px 10px` (xs + sm/md2) with `border-radius: 999px`.
+- **Badge pill padding** `3px 9px` exists in `Layout.css` (legacy Phase 4, sidebar only) — do not retrofit; **new** badges in admin pages use `4px 8px` (xs + sm) with `border-radius: 999px`.
 - Touch targets: desktop-first app; interactive controls (buttons, selects, row actions) minimum height **40px** (derived from input padding 12px + 16px line), not 44px — admin desktop use per phase scope.
 - `3xl (64px)` not used in this phase.
 
@@ -66,7 +67,7 @@ All admin screens: `--fonte-sans` only. Exactly 4 sizes, 2 working weights (+1 r
 
 **Display row: not used in this phase** (serif display type is reserved for Login/Cardápio Público).
 
-**Restricted 700 weight** — allowed ONLY on: (a) numeric saldo values in tables (esp. baixo estoque in `--erro`, DESIGN.md §5.2 "negrito"), (b) badge text, (c) dashboard metric values, (d) primary button labels. Never on body paragraphs.
+**Restricted 700 weight** — allowed ONLY on: (a) numeric saldo values in tables (esp. baixo estoque in `--erro`, DESIGN.md §5.2 "negrito"), (b) dashboard metric values. Badge text uses 600 (DESIGN.md §3 caps badges at 500–600); primary button labels use 600 (DESIGN.md §5.1 specifies no weight). Never on body paragraphs.
 
 ---
 
