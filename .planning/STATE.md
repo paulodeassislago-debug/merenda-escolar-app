@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5
-current_phase_name: Páginas Admin — Frontend
+current_phase: 05
+current_phase_name: Páginas Admin (Frontend)
 status: executing
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-08-01T21:46:33.651Z"
-last_activity: 2026-07-31
-last_activity_desc: Phases 1–4 concluídas (backend completo com 77 testes; fundação frontend com auth JWT)
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-08-01T22:06:40.017Z"
+last_activity: 2026-08-01
+last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PLAN.md (updated 2026-07-31) — plano de ação completo
 
 **Core value:** Controle automático de estoque da cozinha escolar com baixa por consumo real, em conformidade PNAE/SEC-BA
-**Current focus:** Phase 5 — Páginas Admin (Frontend)
+**Current focus:** Phase 05 — Páginas Admin (Frontend)
 
 ## Current Position
 
-Phase: 5 of 7 (Páginas Admin — Frontend)
-Plan: 0 of ? in current phase
+Phase: 05 (Páginas Admin (Frontend)) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-31 — Phases 1–4 concluídas (backend completo com 77 testes; fundação frontend com auth JWT)
+Last activity: 2026-08-01 — Phase 05 execution started
 
-Progress: [██████░░░░] 57%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
@@ -43,6 +43,11 @@ Progress: [██████░░░░] 57%
 - Total execution time: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 05 P01 | 9 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -55,6 +60,10 @@ Decisões técnicas travadas em PLAN.md seção 3. Recentes:
 - Phase 3: `Entrega.data_hora`/`Refeicao.data_hora` em horário local (não UTC) — filtros "de hoje" são locais
 - Phase 3: Auditoria de refeições — divergência da receita exige justificativa (400)
 - Stack: CSS plain co-localizado (Tailwind inativo); XML NF-e parseado no frontend com `fast-xml-parser`
+- [Phase ?]: AcaoEntrega como union literal 'recebido' | 'alterado' | 'excluído' com acento; backend rejeita variantes sem acento (400) — Tipagem forte em types.ts evita erros silenciosos de digitação
+- [Phase ?]: LIMIAR_BAIXO_ESTOQUE = 5.0 em constants.ts espelha backend/main.py:43 — Único ponto de verdade compartilhado entre constantes e backend
+- [Phase ?]: Modal overlay re-tokenizado: rgba(18,76,15,0.35) verde translúcido conforme DESIGN.md — Substitui o preto legado rgba(0,0,0,0.6) de PainelCozinha.css
+- [Phase ?]: Usuarios.tsx definido como template CRUD para planos 02-03 — Itens(02) e Cardápio(03) copiam estrutura de tabela + modal + estados
 
 ### Pending Todos
 
@@ -75,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-01T20:20:10.886Z
-Stopped at: Phase 5 UI-SPEC approved
-Resume file: /home/paulo/Documentos/cozinha-app/merenda-escolar-app/.planning/phases/05-p-ginas-admin-frontend/05-UI-SPEC.md
+Last session: 2026-08-01T22:06:39.994Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
