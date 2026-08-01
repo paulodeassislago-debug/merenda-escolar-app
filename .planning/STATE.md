@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: Páginas Admin (Frontend)
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-08-01T22:22:21.579Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-08-01T22:35:14.470Z"
 last_activity: 2026-08-01
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PLAN.md (updated 2026-07-31) — plano de ação completo
 ## Current Position
 
 Phase: 05 (Páginas Admin (Frontend)) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-08-01 — Phase 05 execution started
 
-Progress: [███░░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [███░░░░░░░] 33%
 |------|----------|-------|-------|
 | Phase 05 P01 | 9 min | 2 tasks | 12 files |
 | Phase 05-p-ginas-admin-frontend P02 | 8min | 2 tasks | 2 files |
+| Phase 05 P03 | 7min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Decisões técnicas travadas em PLAN.md seção 3. Recentes:
 - [Phase ?]: LIMIAR_BAIXO_ESTOQUE = 5.0 em constants.ts espelha backend/main.py:43 — Único ponto de verdade compartilhado entre constantes e backend
 - [Phase ?]: Modal overlay re-tokenizado: rgba(18,76,15,0.35) verde translúcido conforme DESIGN.md — Substitui o preto legado rgba(0,0,0,0.6) de PainelCozinha.css
 - [Phase ?]: Usuarios.tsx definido como template CRUD para planos 02-03 — Itens(02) e Cardápio(03) copiam estrutura de tabela + modal + estados
+- [Phase ?]: Select de tipo_refeicao restrito às 4 strings de TIPOS_REFEICAO (import de constants.ts) — backend rejeita variantes com 400
+- [Phase ?]: nomeItem() como função de merge local: busca item_nome no catálogo de itens carregado quando a resposta POST/PUT não o inclui
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-01T22:22:18.739Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-08-01T22:35:14.434Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
