@@ -362,3 +362,26 @@ select.form-input {
 .modal-destrutivo .modal-acoes {
   justify-content: center;
 }
+
+/* Modal de conversões */
+.modal-conversoes {
+  max-width: 600px;
+}
+
+.conversoes-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--borda);
+  margin-top: 0.5rem;
+}
+
+.conversoes-form .form-group {
+  flex: 1;
+}
+
+.conversoes-form .btn-primario {
+  min-height: 40px;
+  white-space: nowrap;
+}

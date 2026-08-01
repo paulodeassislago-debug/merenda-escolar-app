@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
-import type { Item } from '../../types';
+import type { Item, Conversao } from '../../types';
 import { LIMIAR_BAIXO_ESTOQUE } from './constants';
 import './Itens.css';
 
@@ -23,6 +23,16 @@ export default function Itens() {
   const [erroForm, setErroForm] = useState<string | null>(null);
 
   const [excluindo, setExcluindo] = useState<Item | null>(null);
+
+  // Conversões
+  const [conversoesDe, setConversoesDe] = useState<Item | null>(null);
+  const [conversoes, setConversoes] = useState<Conversao[]>([]);
+  const [carregandoConversoes, setCarregandoConversoes] = useState(false);
+  const [medidaCaseira, setMedidaCaseira] = useState('');
+  const [pesoEmKg, setPesoEmKg] = useState('');
+  const [salvandoConversao, setSalvandoConversao] = useState(false);
+  const [erroConversao, setErroConversao] = useState<string | null>(null);
+  const [excluindoConversao, setExcluindoConversao] = useState<Conversao | null>(null);
 
   const carregarItens = async () => {
     setCarregando(true);
@@ -147,6 +157,91 @@ export default function Itens() {
     }
   };
 
+  // --- Conversões ---
+  const carregarConversoesHandler = async (item: Item) => {
+    setCarregandoConversoes(true);
+    setErroConversao(null);
+    try {
+      const dados = await fetchJson<Conversao[]>(
+        `/conversoes?item_id=${item.id}`,
+      );
+      setConversoes(dados);
+    } catch (err) {
+      setErroConversao(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao carregar as conversões.',
+      );
+    } finally {
+      setCarregandoConversoes(false);
+    }
+  };
+
+  const abrirConversoes = (item: Item) => {
+    setConversoesDe(item);
+    setMedidaCaseira('');
+    setPesoEmKg('');
+    setErroConversao(null);
+    setExcluindoConversao(null);
+    carregarConversoesHandler(item);
+  };
+
+  const fecharConversoes = () => {
+    setConversoesDe(null);
+    setConversoes([]);
+    setMedidaCaseira('');
+    setPesoEmKg('');
+    setErroConversao(null);
+    setExcluindoConversao(null);
+  };
+
+  const adicionarConversao = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!conversoesDe) return;
+    setErroConversao(null);
+    setSalvandoConversao(true);
+
+    try {
+      await fetchJson('/conversoes', {
+        method: 'POST',
+        body: JSON.stringify({
+          item_id: conversoesDe.id,
+          medida_caseira: medidaCaseira.trim(),
+          peso_em_kg: Number(pesoEmKg) || 0,
+        }),
+      });
+      setMedidaCaseira('');
+      setPesoEmKg('');
+      await carregarConversoesHandler(conversoesDe);
+    } catch (err) {
+      setErroConversao(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao adicionar conversão.',
+      );
+    } finally {
+      setSalvandoConversao(false);
+    }
+  };
+
+  const confirmarExclusaoConversao = async () => {
+    if (!excluindoConversao) return;
+    try {
+      await fetchJson(`/conversoes/${excluindoConversao.id}`, {
+        method: 'DELETE',
+      });
+      setExcluindoConversao(null);
+      if (conversoesDe) await carregarConversoesHandler(conversoesDe);
+    } catch (err) {
+      setErroConversao(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao remover conversão.',
+      );
+      setExcluindoConversao(null);
+    }
+  };
+
   return (
     <div>
       <div className="pagina-header">
@@ -222,6 +317,7 @@ export default function Itens() {
                           <button
                             type="button"
                             className="btn-acao btn-acao-conversoes"
+                            onClick={() => abrirConversoes(item)}
                           >
                             Conversões
                           </button>
@@ -346,6 +442,163 @@ export default function Itens() {
                 type="button"
                 className="btn-perigo"
                 onClick={confirmarExclusao}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de conversões */}
+      {conversoesDe && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-conversoes">
+            <div className="modal-header">
+              <h2>Conversões de {conversoesDe.nome}</h2>
+              <button
+                type="button"
+                className="btn-fechar"
+                onClick={fecharConversoes}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {carregandoConversoes && (
+                <p className="aviso">Carregando…</p>
+              )}
+
+              {!carregandoConversoes && (
+                <>
+                  {/* Tabela de conversões */}
+                  <div className="tabela-container">
+                    <table className="tabela">
+                      <thead>
+                        <tr>
+                          <th>Medida caseira</th>
+                          <th>
+                            Peso em kg
+                          </th>
+                          <th>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {conversoes.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="tabela-vazia">
+                              <strong>
+                                Nenhuma conversão cadastrada
+                              </strong>
+                              Sem conversão, o lançamento de refeições com
+                              medidas caseiras falha.
+                            </td>
+                          </tr>
+                        ) : (
+                          conversoes.map((c) => (
+                            <tr key={c.id}>
+                              <td>{c.medida_caseira}</td>
+                              <td>{c.peso_em_kg.toFixed(3)}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn-acao btn-acao-excluir"
+                                  onClick={() =>
+                                    setExcluindoConversao(c)
+                                  }
+                                >
+                                  Remover
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Formulário inline de adição */}
+                  <form
+                    onSubmit={adicionarConversao}
+                    className="conversoes-form"
+                  >
+                    <div className="form-group">
+                      <label htmlFor="conv-medida">
+                        Medida caseira
+                      </label>
+                      <input
+                        id="conv-medida"
+                        type="text"
+                        value={medidaCaseira}
+                        onChange={(e) =>
+                          setMedidaCaseira(e.target.value)
+                        }
+                        className="form-input"
+                        placeholder="ex.: xícara"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="conv-peso">
+                        Peso em kg
+                      </label>
+                      <input
+                        id="conv-peso"
+                        type="number"
+                        step="0.001"
+                        value={pesoEmKg}
+                        onChange={(e) =>
+                          setPesoEmKg(e.target.value)
+                        }
+                        className="form-input"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="btn-primario"
+                      disabled={salvandoConversao}
+                    >
+                      {salvandoConversao
+                        ? 'Salvando…'
+                        : 'Adicionar conversão'}
+                    </button>
+                  </form>
+
+                  {erroConversao && (
+                    <p className="alerta-erro" role="alert">
+                      {erroConversao}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal destrutivo de exclusão de conversão */}
+      {excluindoConversao && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-destrutivo">
+            <p>
+              Excluir a conversão {excluindoConversao.medida_caseira}
+              ? Esta ação não pode ser desfeita.
+            </p>
+            <div className="modal-acoes">
+              <button
+                type="button"
+                className="btn-secundario"
+                onClick={() => setExcluindoConversao(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-perigo"
+                onClick={confirmarExclusaoConversao}
               >
                 Excluir
               </button>
