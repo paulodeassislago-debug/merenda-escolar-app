@@ -1,0 +1,200 @@
+/* src/pages/admin/Dashboard.css — dashboard admin (DESIGN.md tokens) */
+
+.pagina-header {
+  margin-bottom: 2rem;
+}
+
+.pagina-header h1 {
+  font-family: var(--fonte-sans);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--verde-escuro);
+  margin: 0 0 0.25rem;
+}
+
+.pagina-subtitulo {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* Grid de metric cards */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-card {
+  background-color: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra-card);
+  padding: 1.25rem;
+  border-top: 3px solid var(--verde-vivo);
+}
+
+.dashboard-card-titulo {
+  font-family: var(--fonte-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+  margin: 0 0 0.375rem;
+}
+
+.dashboard-card-valor {
+  font-family: var(--fonte-sans);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--texto);
+  margin: 0;
+}
+
+.dashboard-card-valor.dashboard-card-alerta {
+  color: var(--erro);
+}
+
+/* Seções */
+.dashboard-secao {
+  background-color: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra-card);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-secao h2 {
+  font-family: var(--fonte-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--verde-escuro);
+  margin: 0 0 1rem;
+}
+
+/* Refeições de hoje */
+.refeicao-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--borda);
+  font-size: 0.875rem;
+}
+
+.refeicao-linha:last-child {
+  border-bottom: none;
+}
+
+.refeicao-tipo {
+  font-weight: 600;
+  color: var(--texto);
+  min-width: 140px;
+}
+
+.refeicao-prato-null {
+  color: var(--texto-suave);
+  font-style: italic;
+}
+
+/* Badges confirmado/pendente */
+.badge {
+  display: inline-block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  line-height: 1.3;
+}
+
+.badge-confirmado {
+  background-color: var(--verde-vivo);
+  color: var(--branco);
+}
+
+.badge-pendente {
+  background-color: var(--amarelo);
+  color: var(--texto);
+}
+
+/* Itens críticos */
+.dashboard-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-lista li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--borda);
+  font-size: 0.875rem;
+}
+
+.dashboard-lista li:last-child {
+  border-bottom: none;
+}
+
+.dashboard-lista-nome {
+  color: var(--texto);
+}
+
+.dashboard-lista-saldo {
+  color: var(--erro);
+  font-weight: 700;
+}
+
+/* Entregas */
+.dashboard-entregas-grid {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-entregas-item {
+  text-align: center;
+}
+
+.dashboard-entregas-valor {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.dashboard-entregas-rotulo {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+  margin-top: 0.125rem;
+}
+
+.dashboard-entregas-ultima {
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+  margin-top: 0.75rem;
+}
+
+/* Estados */
+.aviso {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+.aviso-erro {
+  color: var(--erro);
+}
+
+.vazio {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  padding: 0.75rem 0;
+}
