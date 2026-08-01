@@ -81,7 +81,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-02-PLAN.md — Itens: CRUD de estoque com badge de baixo estoque + conversões por item (F8)
+- [x] 05-02-PLAN.md — Itens: CRUD de estoque com badge de baixo estoque + conversões por item (F8)
 - [ ] 05-03-PLAN.md — Cardápio + Receitas: CRUD de pratos e editor de ingredientes (F9)
 - [ ] 05-04-PLAN.md — Planejamento: grade semanal 7×4 com upsert por vigência (F10)
 - [ ] 05-05-PLAN.md — Entregas: entrada manual com justificativa PNAE + parser XML NF-e (F11, F12)
