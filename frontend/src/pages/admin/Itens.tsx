@@ -1,9 +1,358 @@
-// src/pages/admin/Itens.tsx — scaffolding (substituído pelo plano 05-02)
+// src/pages/admin/Itens.tsx — CRUD de itens do estoque com destaque de baixo estoque
+
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { ApiError, fetchJson } from '../../api';
+import type { Item } from '../../types';
+import { LIMIAR_BAIXO_ESTOQUE } from './constants';
+import './Itens.css';
+
+type ItemPayload = { nome: string; unidade_oficial: string; saldo_atual: number };
 
 export default function Itens() {
+  const [itens, setItens] = useState<Item[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const [modalAberto, setModalAberto] = useState(false);
+  const [editando, setEditando] = useState<Item | null>(null);
+  const [nome, setNome] = useState('');
+  const [unidadeOficial, setUnidadeOficial] = useState('KG');
+  const [saldoAtual, setSaldoAtual] = useState('0');
+  const [salvando, setSalvando] = useState(false);
+  const [erroForm, setErroForm] = useState<string | null>(null);
+
+  const [excluindo, setExcluindo] = useState<Item | null>(null);
+
+  const carregarItens = async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const dados = await fetchJson<Item[]>('/itens');
+      setItens(dados);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setErro('Sua sessão expirou. Entre novamente.');
+      } else {
+        setErro(
+          err instanceof ApiError
+            ? err.message
+            : 'Não foi possível carregar os itens. Verifique se o backend está rodando.',
+        );
+      }
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson<Item[]>('/itens')
+      .then((dados) => {
+        if (!cancelled) setItens(dados);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          if (err instanceof ApiError && err.status === 401) {
+            setErro('Sua sessão expirou. Entre novamente.');
+          } else {
+            setErro(
+              err instanceof ApiError
+                ? err.message
+                : 'Não foi possível carregar os itens. Verifique se o backend está rodando.',
+            );
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCarregando(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const abrirModalNovo = () => {
+    setEditando(null);
+    setNome('');
+    setUnidadeOficial('KG');
+    setSaldoAtual('0');
+    setErroForm(null);
+    setModalAberto(true);
+  };
+
+  const abrirModalEditar = (item: Item) => {
+    setEditando(item);
+    setNome(item.nome);
+    setUnidadeOficial(item.unidade_oficial);
+    setSaldoAtual(item.saldo_atual.toString());
+    setErroForm(null);
+    setModalAberto(true);
+  };
+
+  const fecharModal = () => {
+    setModalAberto(false);
+    setEditando(null);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setErroForm(null);
+    setSalvando(true);
+
+    try {
+      const payload: ItemPayload = {
+        nome: nome.trim(),
+        unidade_oficial: unidadeOficial,
+        saldo_atual: Number(saldoAtual) || 0,
+      };
+
+      if (editando) {
+        await fetchJson<Item>(`/itens/${editando.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchJson<Item>('/itens', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
+      fecharModal();
+      await carregarItens();
+    } catch (err) {
+      setErroForm(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao salvar. Tente novamente.',
+      );
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const confirmarExclusao = async () => {
+    if (!excluindo) return;
+    try {
+      await fetchJson(`/itens/${excluindo.id}`, { method: 'DELETE' });
+      setExcluindo(null);
+      await carregarItens();
+    } catch (err) {
+      setErro(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao excluir. Tente novamente.',
+      );
+      setExcluindo(null);
+    }
+  };
+
   return (
     <div>
-      <h1>Itens / Estoque</h1>
+      <div className="pagina-header">
+        <h1>Itens / Estoque</h1>
+        <button type="button" className="btn-primario" onClick={abrirModalNovo}>
+          Novo item
+        </button>
+      </div>
+
+      {/* Carregando */}
+      {carregando && <p className="aviso">Carregando…</p>}
+
+      {/* Erro de carregamento */}
+      {!carregando && erro && (
+        <p className="aviso aviso-erro" role="alert">
+          {erro}
+        </p>
+      )}
+
+      {/* Tabela */}
+      {!carregando && !erro && (
+        <div className="card">
+          <div className="tabela-container">
+            <table className="tabela">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Unidade</th>
+                  <th>Saldo</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="tabela-vazia">
+                      <strong>Nenhum item no estoque</strong>
+                      Cadastre o primeiro item para começar o controle de
+                      estoque.
+                    </td>
+                  </tr>
+                ) : (
+                  itens.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.nome}</td>
+                      <td>{item.unidade_oficial}</td>
+                      <td
+                        className={
+                          item.saldo_atual < LIMIAR_BAIXO_ESTOQUE
+                            ? 'saldo-baixo'
+                            : ''
+                        }
+                      >
+                        {item.saldo_atual.toFixed(2)}
+                      </td>
+                      <td>
+                        {item.saldo_atual < LIMIAR_BAIXO_ESTOQUE ? (
+                          <span className="status-alerta">Baixo estoque</span>
+                        ) : (
+                          <span className="status-ok">OK</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="acoes-celula">
+                          <button
+                            type="button"
+                            className="btn-acao btn-acao-editar"
+                            onClick={() => abrirModalEditar(item)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-acao btn-acao-conversoes"
+                          >
+                            Conversões
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-acao btn-acao-excluir"
+                            onClick={() => setExcluindo(item)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal criar/editar */}
+      {modalAberto && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>{editando ? 'Editar item' : 'Novo item'}</h2>
+              <button
+                type="button"
+                className="btn-fechar"
+                onClick={fecharModal}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label htmlFor="item-nome">Nome</label>
+                  <input
+                    id="item-nome"
+                    type="text"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="item-unidade">Unidade oficial</label>
+                  <select
+                    id="item-unidade"
+                    value={unidadeOficial}
+                    onChange={(e) => setUnidadeOficial(e.target.value)}
+                    className="form-input"
+                    required
+                  >
+                    <option value="KG">KG</option>
+                    <option value="L">L</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="item-saldo">Saldo atual</label>
+                  <input
+                    id="item-saldo"
+                    type="number"
+                    step="0.1"
+                    value={saldoAtual}
+                    onChange={(e) => setSaldoAtual(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                {erroForm && (
+                  <p className="alerta-erro" role="alert">
+                    {erroForm}
+                  </p>
+                )}
+              </div>
+
+              <div className="modal-acoes">
+                <button
+                  type="button"
+                  className="btn-secundario"
+                  onClick={fecharModal}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primario"
+                  disabled={salvando}
+                >
+                  {salvando ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal destrutivo de exclusão */}
+      {excluindo && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-destrutivo">
+            <p>
+              Excluir o item {excluindo.nome}? Esta ação não pode ser desfeita.
+            </p>
+            <div className="modal-acoes">
+              <button
+                type="button"
+                className="btn-secundario"
+                onClick={() => setExcluindo(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-perigo"
+                onClick={confirmarExclusao}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
