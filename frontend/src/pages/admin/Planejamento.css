@@ -1,0 +1,136 @@
+/* src/pages/admin/Planejamento.css — grade semanal (DESIGN.md tokens) */
+
+.planejamento-page {
+  /* herda fundo do Layout */
+}
+
+/* Navegação de semana */
+.planejamento-nav {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.planejamento-data {
+  display: flex;
+  flex-direction: column;
+}
+
+.planejamento-data-label {
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.375rem;
+}
+
+.planejamento-date-input {
+  min-width: 160px;
+}
+
+/* Caption da semana */
+.planejamento-caption {
+  margin: 0 0 1.5rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+/* Container da grade (overflow horizontal se necessário) */
+.planejamento-grade-container {
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+
+/* Grade principal */
+.planejamento-grade {
+  table-layout: fixed;
+  min-width: 640px;
+}
+
+.planejamento-grade thead th {
+  background-color: var(--verde-tint);
+  color: var(--verde-escuro);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid var(--borda);
+}
+
+.planejamento-grade tbody td {
+  padding: 0;
+  border-bottom: 1px solid var(--borda);
+  vertical-align: top;
+}
+
+.planejamento-grade tbody tr:hover {
+  background-color: rgba(237, 244, 234, 0.5);
+}
+
+/* Coluna do nome do dia */
+.planejamento-dia-col {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--texto);
+  padding: 0.75rem !important;
+  text-align: left;
+  width: 100px;
+  min-width: 100px;
+}
+
+/* Células com select */
+.planejamento-celula {
+  padding: 0.25rem !important;
+}
+
+/* Select dentro da célula */
+.planejamento-select {
+  width: 100%;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  font-family: var(--fonte-sans);
+  box-sizing: border-box;
+  min-height: 40px;
+  background-color: var(--branco);
+  color: var(--texto);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.planejamento-select:focus {
+  outline: none;
+  border-color: var(--verde-vivo);
+  box-shadow: 0 0 0 2px rgba(72, 187, 44, 0.25);
+}
+
+/* Célula vazia: placeholder "A definir" em itálico */
+.celula-vazia {
+  color: var(--texto-suave);
+  font-style: italic;
+}
+
+.celula-vazia option:not([value=""]) {
+  color: var(--texto);
+  font-style: normal;
+}
+
+/* Ações (botão de salvar) */
+.planejamento-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+/* Feedback de sucesso */
+.planejamento-sucesso {
+  margin: 0.5rem 0;
+  color: var(--verde-escuro);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: right;
+}
