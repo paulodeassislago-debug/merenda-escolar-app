@@ -496,3 +496,45 @@ select.form-input {
 .tabela-editor {
   margin-bottom: 1rem;
 }
+
+/* Hidden file input for XML upload trigger */
+.upload-input-hidden {
+  display: none;
+}
+
+/* Editor secondary heading */
+.editor-titulo {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-family: var(--fonte-sans);
+  color: var(--verde-escuro);
+}
+
+/* NF original description under item select */
+.nf-descricao-original {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  margin-top: 0.25rem;
+}
+
+/* Editor footer actions row (add item + submit) */
+.editor-acoes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.editor-acoes .alerta-erro {
+  flex: 1 1 100%;
+}
+
+/* Detail modal meta line */
+.detalhe-meta {
+  margin: 0 0 1rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}

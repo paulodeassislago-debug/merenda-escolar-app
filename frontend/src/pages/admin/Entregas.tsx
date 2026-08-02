@@ -477,7 +477,7 @@ export default function Entregas() {
                 id="upload-xml"
                 type="file"
                 accept=".xml"
-                style={{ display: 'none' }}
+                className="upload-input-hidden"
                 onChange={handleUploadXml}
               />
             </div>
@@ -511,7 +511,7 @@ export default function Entregas() {
           )}
 
           <div className="editor-header">
-            <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
+            <h2 className="editor-titulo">
               {numeroNota ? 'Revisão da nota fiscal' : 'Lançamento manual'}
             </h2>
             <div className="acoes-celula">
@@ -591,12 +591,7 @@ export default function Entregas() {
                         )}
                         {linha.descricaoNf && linha.itemId !== null && (
                           <span
-                            style={{
-                              display: 'block',
-                              fontSize: '0.75rem',
-                              color: 'var(--texto-suave)',
-                              marginTop: '0.25rem',
-                            }}
+                            className="nf-descricao-original"
                           >
                             NF: {linha.descricaoNf}
                             {linha.unidadeNf ? ` (${linha.unidadeNf})` : ''}
@@ -645,13 +640,7 @@ export default function Entregas() {
 
           {/* Add item + Submit */}
           <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '0.75rem',
-            }}
+            className="editor-acoes"
           >
             <button
               type="button"
@@ -662,7 +651,7 @@ export default function Entregas() {
             </button>
 
             {erroSubmit && (
-              <p className="alerta-erro" role="alert" style={{ flex: '1 1 100%' }}>
+              <p className="alerta-erro" role="alert">
                 {erroSubmit}
               </p>
             )}
@@ -765,7 +754,7 @@ export default function Entregas() {
             </div>
 
             <div className="modal-body">
-              <p style={{ margin: '0 0 1rem', color: 'var(--texto-suave)', fontSize: '0.875rem' }}>
+              <p className="detalhe-meta">
                 {new Date(detalhe.data_hora).toLocaleString('pt-BR')} — Registrado
                 por: {detalhe.id_usuario}
               </p>
