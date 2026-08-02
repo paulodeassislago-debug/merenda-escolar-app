@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Banco de dados local
+merenda.db
+
+# Variáveis de ambiente
+.env

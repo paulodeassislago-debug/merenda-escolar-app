@@ -1,0 +1,191 @@
+/* src/components/Layout.css — tokens do DESIGN.md (index.css) */
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+  font-family: var(--fonte-sans);
+  background-color: var(--fundo);
+  color: var(--texto);
+}
+
+/* --- Sidebar --- */
+
+.layout-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background-color: var(--verde-escuro);
+  color: var(--branco);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.75rem;
+  box-sizing: border-box;
+}
+
+.layout-marca {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0.5rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  margin-bottom: 1rem;
+}
+
+/* O JPG do brasão tem fundo branco embutido: container branco obrigatório (DESIGN.md 4.2) */
+.layout-logo-container {
+  background-color: var(--branco);
+  border-radius: 50%;
+  padding: 3px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.layout-logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.layout-escola {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.layout-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+}
+
+.layout-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--raio);
+  font-size: 0.925rem;
+  border-left: 3px solid transparent;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.layout-link:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+  color: var(--branco);
+}
+
+/* Item ativo: borda lateral verde-vivo (DESIGN.md 5.5) */
+.layout-link-ativo,
+.layout-link-ativo:hover {
+  background-color: rgba(72, 187, 44, 0.22);
+  border-left-color: var(--verde-vivo);
+  color: var(--branco);
+  font-weight: 600;
+}
+
+.layout-link-publico {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0;
+  padding-top: 0.875rem;
+}
+
+/* --- Corpo (header + conteúdo) --- */
+
+.layout-corpo {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.layout-header {
+  background-color: var(--branco);
+  border-bottom: 1px solid var(--borda);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.layout-header-titulo {
+  font-weight: 600;
+  color: var(--verde-escuro);
+  font-size: 0.95rem;
+}
+
+.layout-usuario {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.layout-usuario-nome {
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+}
+
+/* Badges de perfil (DESIGN.md 5.3) */
+.layout-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.layout-badge-admin {
+  background-color: var(--verde-escuro);
+  color: var(--branco);
+}
+
+.layout-badge-secretaria {
+  background-color: var(--verde-tint);
+  color: var(--verde-escuro);
+}
+
+.layout-badge-cozinheira {
+  background-color: var(--amarelo);
+  color: var(--texto);
+}
+
+.layout-logout {
+  background-color: var(--branco);
+  color: var(--erro);
+  border: 1px solid var(--erro);
+  border-radius: var(--raio);
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.layout-logout:hover {
+  background-color: var(--erro-fundo);
+}
+
+.layout-conteudo {
+  flex-grow: 1;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+/* Sidebar vira topo em telas estreitas */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .layout-sidebar {
+    width: 100%;
+    flex-direction: column;
+  }
+}

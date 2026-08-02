@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =========================================================================
+   Tokens de design — DESIGN.md (identidade visual do brasão da escola)
+   ========================================================================= */
+:root {
+  /* Marca (amostradas do logotipo) */
+  --verde-escuro: #124C0F;
+  --verde-vivo: #48BB2C;
+  --amarelo: #C5D227;
+  --branco: #FFFFFF;
+
+  /* Apoio */
+  --verde-escuro-hover: #0D3809;
+  --verde-tint: #EDF4EA;
+  --fundo: #F7FAF5;
+  --texto: #1D2B1A;
+  --texto-suave: #5A6B56;
+  --borda: #D9E4D4;
+  --erro: #B3261E;
+  --erro-fundo: #FBEDEB;
+
+  /* Semânticos */
+  --cor-primaria: var(--verde-escuro);
+  --cor-primaria-hover: var(--verde-escuro-hover);
+  --cor-sucesso: var(--verde-vivo);
+  --cor-alerta: var(--amarelo);
+  --cor-erro: var(--erro);
+
+  /* Forma */
+  --raio: 8px;
+  --sombra-card: 0 1px 3px rgba(18, 76, 15, 0.10);
+
+  /* Tipografia institucional (títulos cerimoniais) */
+  --fonte-serif: Georgia, 'Times New Roman', serif;
+  --fonte-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
