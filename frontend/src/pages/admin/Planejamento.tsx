@@ -168,6 +168,8 @@ export default function Planejamento() {
       setSucesso(true);
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Falha ao salvar o planejamento. Tente novamente.');
+      // Refetch para sincronizar estado após falha parcial (slots já salvos)
+      await carregarDados();
     } finally {
       setSalvando(false);
     }
