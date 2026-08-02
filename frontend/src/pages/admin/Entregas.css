@@ -360,6 +360,10 @@ select.form-input {
   border: 1px solid var(--amarelo);
 }
 
+.campo-auditoria-preenchido {
+  border: 1px solid var(--borda);
+}
+
 .campo-auditoria:focus {
   outline: none;
   border-color: var(--verde-vivo);

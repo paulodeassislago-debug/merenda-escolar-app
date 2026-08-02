@@ -720,11 +720,6 @@ export default function Entregas() {
                   value={textoJustificativa}
                   onChange={(e) => setTextoJustificativa(e.target.value)}
                   placeholder="Descreva o motivo da alteração ou exclusão..."
-                  style={
-                    textoJustificativa.trim()
-                      ? { border: '1px solid var(--borda)' }
-                      : { border: '1px solid var(--amarelo)' }
-                  }
                 />
               </div>
             </div>
