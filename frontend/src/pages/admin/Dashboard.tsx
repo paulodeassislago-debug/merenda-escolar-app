@@ -10,31 +10,27 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const carregarDashboard = () => {
+    setCarregando(true);
+    setErro(null);
     fetchJson<DashboardResponse>('/admin/dashboard')
-      .then((res) => {
-        if (!cancelled) setDados(res);
-      })
+      .then((res) => setDados(res))
       .catch((err) => {
-        if (!cancelled) {
-          if (err instanceof ApiError && err.status === 401) {
-            setErro('Sua sessão expirou. Entre novamente.');
-          } else {
-            setErro(
-              err instanceof ApiError
-                ? err.message
-                : 'Não foi possível carregar o dashboard.',
-            );
-          }
+        if (err instanceof ApiError && err.status === 401) {
+          setErro('Sua sessão expirou. Entre novamente.');
+        } else {
+          setErro(
+            err instanceof ApiError
+              ? err.message
+              : 'Não foi possível carregar o dashboard.',
+          );
         }
       })
-      .finally(() => {
-        if (!cancelled) setCarregando(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => setCarregando(false));
+  };
+
+  useEffect(() => {
+    carregarDashboard();
   }, []);
 
   return (
@@ -47,9 +43,12 @@ export default function Dashboard() {
       {carregando && <p className="aviso">Carregando…</p>}
 
       {erro && (
-        <p className="aviso aviso-erro" role="alert">
-          {erro}
-        </p>
+        <div className="aviso aviso-erro" role="alert">
+          <p>{erro}</p>
+          <button type="button" className="btn-secundario" onClick={carregarDashboard}>
+            Tentar novamente
+          </button>
+        </div>
       )}
 
       {!carregando && !erro && dados && (
