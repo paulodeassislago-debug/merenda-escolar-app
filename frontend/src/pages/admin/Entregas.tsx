@@ -42,6 +42,7 @@ export default function Entregas() {
   const [justificativaPendente, setJustificativaPendente] = useState<{
     index: number;
     acao: 'alterado' | 'excluído';
+    quantidadePendente?: number;
   } | null>(null);
   const [textoJustificativa, setTextoJustificativa] = useState('');
 
@@ -148,19 +149,23 @@ export default function Entregas() {
   };
 
   const atualizarQuantidade = (index: number, quantidade: number) => {
-    setLinhas((prev) =>
-      prev.map((l, i) => {
-        if (i !== index) return l;
-        // Editar quantidade de linha existente → ação vira 'alterado' + justificativa
-        if (l.acao !== 'alterado' && l.quantidade !== quantidade) {
-          // Abrir modal de justificativa
-          setTextoJustificativa('');
-          setJustificativaPendente({ index, acao: 'alterado' });
-          return { ...l, quantidade };
-        }
-        return { ...l, quantidade };
-      }),
-    );
+    const linha = linhas[index];
+    if (!linha) return;
+
+    // Se a linha já está marcada como 'alterado', permite editar livremente
+    if (linha.acao === 'alterado') {
+      setLinhas((prev) =>
+        prev.map((l, i) => (i === index ? { ...l, quantidade } : l)),
+      );
+      return;
+    }
+
+    // Primeira alteração de quantidade: abre modal de justificativa sem aplicar ainda
+    if (linha.quantidade !== quantidade) {
+      setTextoJustificativa('');
+      setJustificativaPendente({ index, acao: 'alterado', quantidadePendente: quantidade });
+      return; // NÃO chama setLinhas — quantidade só é aplicada ao confirmar
+    }
   };
 
   const removerLinha = (index: number) => {
@@ -186,13 +191,25 @@ export default function Entregas() {
   const confirmarJustificativa = () => {
     if (!justificativaPendente || textoJustificativa.trim() === '') return;
 
-    const { index } = justificativaPendente;
+    const { index, acao, quantidadePendente } = justificativaPendente;
+    const just = textoJustificativa.trim();
 
-    // Só grava a justificativa se a linha ainda existe
     setLinhas((prev) =>
-      prev.map((l, i) =>
-        i === index ? { ...l, justificativa: textoJustificativa.trim() } : l,
-      ),
+      prev.map((l, i) => {
+        if (i !== index) return l;
+        const updates: Partial<LinhaEdicao> = { justificativa: just };
+        if (acao === 'alterado') {
+          updates.acao = 'alterado';
+          if (quantidadePendente !== undefined) {
+            updates.quantidade = quantidadePendente;
+          }
+        }
+        if (acao === 'excluído') {
+          updates.acao = 'excluído';
+          updates.removida = true;
+        }
+        return { ...l, ...updates };
+      }),
     );
     setJustificativaPendente(null);
     setTextoJustificativa('');
@@ -202,17 +219,15 @@ export default function Entregas() {
     if (!justificativaPendente) return;
 
     const { index, acao } = justificativaPendente;
-    setLinhas((prev) =>
-      prev.map((l, i) => {
-        if (i !== index) return l;
-        if (acao === 'excluído') {
-          // Reverter remoção
-          return { ...l, removida: false, acao: 'recebido' };
-        }
-        // Reverter alteração — volta ao estado original (recebido)
-        return { ...l, acao: 'recebido' };
-      }),
-    );
+    // Para 'alterado': a quantidade nunca foi aplicada — só fecha o modal
+    // Para 'excluído': reverte remoção (removida + acao)
+    if (acao === 'excluído') {
+      setLinhas((prev) =>
+        prev.map((l, i) =>
+          i === index ? { ...l, removida: false, acao: 'recebido' } : l,
+        ),
+      );
+    }
     setJustificativaPendente(null);
     setTextoJustificativa('');
   };
