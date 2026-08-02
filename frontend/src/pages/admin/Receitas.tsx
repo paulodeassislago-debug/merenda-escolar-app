@@ -172,6 +172,15 @@ export default function Receitas() {
     }
   };
 
+  // Guarda: rota inválida (sem ID ou ID não numérico)
+  if (isNaN(cardapioId) || cardapioId <= 0) {
+    return (
+      <div className="aviso aviso-erro" role="alert">
+        ID do prato inválido. Volte ao cardápio e selecione um prato.
+      </div>
+    );
+  }
+
   return (
     <div>
       {carregando && <p className="aviso">Carregando…</p>}
