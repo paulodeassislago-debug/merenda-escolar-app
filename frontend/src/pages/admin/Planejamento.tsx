@@ -81,7 +81,11 @@ export default function Planejamento() {
       setSelecoes(buildSelecoes(entradasData));
       setSucesso(false);
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os dados. Verifique se o backend está rodando e tente novamente.');
+      if (e instanceof ApiError && e.status === 401) {
+        setErro('Sua sessão expirou. Entre novamente.');
+      } else {
+        setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os dados. Verifique se o backend está rodando e tente novamente.');
+      }
     } finally {
       setCarregando(false);
     }
@@ -110,7 +114,11 @@ export default function Planejamento() {
         }
       } catch (e) {
         if (!cancelled) {
-          setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os dados. Verifique se o backend está rodando e tente novamente.');
+          if (e instanceof ApiError && e.status === 401) {
+            setErro('Sua sessão expirou. Entre novamente.');
+          } else {
+            setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os dados. Verifique se o backend está rodando e tente novamente.');
+          }
           setCarregando(false);
         }
       }

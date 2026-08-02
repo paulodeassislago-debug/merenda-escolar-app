@@ -31,11 +31,15 @@ export default function Cardapio() {
       const dados = await fetchJson<CardapioItem[]>('/cardapio');
       setPratos(dados);
     } catch (err) {
-      setErro(
-        err instanceof ApiError
-          ? err.message
-          : 'Não foi possível carregar o cardápio. Verifique se o backend está rodando.',
-      );
+      if (err instanceof ApiError && err.status === 401) {
+        setErro('Sua sessão expirou. Entre novamente.');
+      } else {
+        setErro(
+          err instanceof ApiError
+            ? err.message
+            : 'Não foi possível carregar o cardápio. Verifique se o backend está rodando.',
+        );
+      }
     } finally {
       setCarregando(false);
     }
@@ -49,11 +53,15 @@ export default function Cardapio() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setErro(
-            err instanceof ApiError
-              ? err.message
-              : 'Não foi possível carregar o cardápio. Verifique se o backend está rodando.',
-          );
+          if (err instanceof ApiError && err.status === 401) {
+            setErro('Sua sessão expirou. Entre novamente.');
+          } else {
+            setErro(
+              err instanceof ApiError
+                ? err.message
+                : 'Não foi possível carregar o cardápio. Verifique se o backend está rodando.',
+            );
+          }
         }
       })
       .finally(() => {

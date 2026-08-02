@@ -18,11 +18,15 @@ export default function Dashboard() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setErro(
-            err instanceof ApiError
-              ? err.message
-              : 'Não foi possível carregar o dashboard.',
-          );
+          if (err instanceof ApiError && err.status === 401) {
+            setErro('Sua sessão expirou. Entre novamente.');
+          } else {
+            setErro(
+              err instanceof ApiError
+                ? err.message
+                : 'Não foi possível carregar o dashboard.',
+            );
+          }
         }
       })
       .finally(() => {
