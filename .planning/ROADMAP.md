@@ -72,7 +72,7 @@ Sistema web para o Colégio Estadual do Campo Nancy de Castro Esteves — contro
   3. Admin consegue gerenciar usuários, itens, cardápio, receitas, planejamento e entregas via UI (testes manuais F6–F12 do TESTING.md)
   4. Entregas suporta entrada manual com justificativa obrigatória ao alterar/excluir + upload de XML NF-e populando a tabela
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 
 Plans:
 **Wave 1**
@@ -88,7 +88,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-06-PLAN.md — Portões de saída: build/lint zero, regressão pytest (77), varredura de anti-padrões (D-12)
+- [x] 05-06-PLAN.md — Portões de saída: build/lint zero, regressão pytest (77), varredura de anti-padrões (D-12)
 
 ### Phase 6: Cozinha + Gestão (Frontend)
 
@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. CRUD Endpoints (Backend) | - | Complete | 2026-07-31 |
 | 3. Lógica de Negócio (Backend) | - | Complete | 2026-07-31 |
 | 4. Fundação Frontend | - | Complete | 2026-07-31 |
-| 5. Páginas Admin (Frontend) | 5/6 | In Progress|  |
+| 5. Páginas Admin (Frontend) | 6/6 | In Progress|  |
 | 6. Cozinha + Gestão (Frontend) | 0/? | Not started | - |
 | 7. Finalização | 0/? | Not started | - |
