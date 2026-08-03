@@ -17,7 +17,7 @@ def test_d1_secoes_presentes(client, admin_user, admin_token):
     assert "itens_criticos" in dados["estoque"]
 
     assert "refeicoes_hoje" in dados
-    assert len(dados["refeicoes_hoje"]) == 4
+    assert len(dados["refeicoes_hoje"]) == 3
 
     assert "entregas" in dados
     assert "ultimos_7_dias" in dados["entregas"]

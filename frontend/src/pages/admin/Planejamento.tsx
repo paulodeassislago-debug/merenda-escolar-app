@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type { PlanejamentoEntrada, CardapioItem } from '../../types';
-import { DIAS_SEMANA, TIPOS_REFEICAO, SLOTS_REFEICAO } from './constants';
+import { DIAS_SEMANA, SLOTS_REFEICAO } from './constants';
 import './Planejamento.css';
 
 // --- Helpers locais (não exportados — regra react-refresh) ---
