@@ -57,14 +57,18 @@ class UsuarioResponse(BaseModel):
 
 class ItemCreate(BaseModel):
     nome: str
-    unidade_oficial: str
+    unidade_oficial: str = Field(max_length=50)
     saldo_atual: float = 0.0
+    unidade_interna: str | None = None
+    fator_conversao: float | None = None
 
 
 class ItemUpdate(BaseModel):
     nome: str | None = None
     unidade_oficial: str | None = None
     saldo_atual: float | None = None
+    unidade_interna: str | None = None
+    fator_conversao: float | None = None
 
 
 class ItemResponse(BaseModel):
@@ -72,6 +76,8 @@ class ItemResponse(BaseModel):
     nome: str
     unidade_oficial: str
     saldo_atual: float
+    unidade_interna: str
+    fator_conversao: float
 
 
 # --- Conversões ---

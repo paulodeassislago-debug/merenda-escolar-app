@@ -36,7 +36,7 @@ def get_db():
 
 # Valores válidos (espelham os CHECK constraints de models.py)
 PERFIS_VALIDOS = ["admin", "secretaria", "cozinheira"]
-UNIDADES_VALIDAS = ["KG", "L"]
+UNIDADES_OFICIAIS_INTERNAS = {"KG", "L"}
 TIPOS_REFEICAO_VALIDOS = ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
 ACOES_ENTREGA_VALIDAS = ["recebido", "alterado", "excluído"]
 
@@ -169,6 +169,8 @@ def listar_itens(
             "nome": item.nome,
             "unidade_oficial": item.unidade_oficial,
             "saldo_atual": item.saldo_atual,
+            "unidade_interna": item.unidade_interna,
+            "fator_conversao": item.fator_conversao,
         }
         for item in itens
     ]
@@ -180,8 +182,20 @@ def criar_item(
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("admin")),
 ):
-    if dados.unidade_oficial not in UNIDADES_VALIDAS:
-        raise HTTPException(status_code=400, detail=f"Unidade inválida. Use: {', '.join(UNIDADES_VALIDAS)}")
+    unidade_normalizada = dados.unidade_oficial.strip().upper()
+
+    # Validação condicional: se unidade não for KG ou L, exige conversão
+    if unidade_normalizada not in UNIDADES_OFICIAIS_INTERNAS:
+        if not dados.fator_conversao or dados.fator_conversao <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Para unidade '{dados.unidade_oficial}', informe unidade_interna (KG ou L) e fator_conversao > 0",
+            )
+        if not dados.unidade_interna or dados.unidade_interna.strip().upper() not in UNIDADES_OFICIAIS_INTERNAS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unidade_interna deve ser 'KG' ou 'L', recebido: '{dados.unidade_interna}'",
+            )
 
     existente = db.query(models.Item).filter(models.Item.nome == dados.nome).first()
     if existente:
@@ -191,6 +205,8 @@ def criar_item(
         nome=dados.nome,
         unidade_oficial=dados.unidade_oficial,
         saldo_atual=dados.saldo_atual,
+        unidade_interna=dados.unidade_interna or "KG",
+        fator_conversao=dados.fator_conversao or 1.0,
     )
     db.add(novo)
     db.commit()
@@ -200,6 +216,8 @@ def criar_item(
         "nome": novo.nome,
         "unidade_oficial": novo.unidade_oficial,
         "saldo_atual": novo.saldo_atual,
+        "unidade_interna": novo.unidade_interna,
+        "fator_conversao": novo.fator_conversao,
     }
 
 
@@ -224,9 +242,28 @@ def atualizar_item(
         item.nome = dados.nome
 
     if dados.unidade_oficial is not None:
-        if dados.unidade_oficial not in UNIDADES_VALIDAS:
-            raise HTTPException(status_code=400, detail=f"Unidade inválida. Use: {', '.join(UNIDADES_VALIDAS)}")
+        unidade_normalizada = dados.unidade_oficial.strip().upper()
+        if unidade_normalizada not in UNIDADES_OFICIAIS_INTERNAS:
+            # Validação condicional: unidade livre exige conversão
+            fator = dados.fator_conversao
+            unidade_int = dados.unidade_interna or item.unidade_interna
+            if not fator or fator <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Para unidade '{dados.unidade_oficial}', informe unidade_interna (KG ou L) e fator_conversao > 0",
+                )
+            if not unidade_int or unidade_int.strip().upper() not in UNIDADES_OFICIAIS_INTERNAS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"unidade_interna deve ser 'KG' ou 'L', recebido: '{unidade_int}'",
+                )
         item.unidade_oficial = dados.unidade_oficial
+
+    if dados.unidade_interna is not None:
+        item.unidade_interna = dados.unidade_interna
+
+    if dados.fator_conversao is not None:
+        item.fator_conversao = dados.fator_conversao
 
     if dados.saldo_atual is not None:
         item.saldo_atual = dados.saldo_atual
@@ -238,6 +275,8 @@ def atualizar_item(
         "nome": item.nome,
         "unidade_oficial": item.unidade_oficial,
         "saldo_atual": item.saldo_atual,
+        "unidade_interna": item.unidade_interna,
+        "fator_conversao": item.fator_conversao,
     }
 
 
@@ -670,7 +709,7 @@ def registrar_entrega(
     for item_req in dados.itens:
         item = db.query(models.Item).filter(models.Item.id == item_req.item_id).first()
         if item_req.acao in ("recebido", "alterado"):
-            item.saldo_atual += item_req.quantidade
+            item.saldo_atual += item_req.quantidade * item.fator_conversao
         db.add(models.ItemEntrega(
             entrega_id=entrega.id,
             item_id=item_req.item_id,

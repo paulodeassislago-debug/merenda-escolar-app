@@ -1,11 +1,12 @@
 # Fase 2.2 — CRUD de itens/estoque (GET para todos os perfis; CRUD somente admin)
+# Fase 5.7 — Unidades livres com conversão interna
 
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-# 4.1 — POST /itens cria item → 200, dados conferem
+# 4.1 — POST /itens cria item → 200, dados conferem (inclui novos campos)
 def test_4_1_post_item(client, admin_user, admin_token):
     resp = client.post(
         "/itens",
@@ -18,6 +19,8 @@ def test_4_1_post_item(client, admin_user, admin_token):
     assert dados["nome"] == "Arroz Parboilizado"
     assert dados["unidade_oficial"] == "KG"
     assert dados["saldo_atual"] == 50.0
+    assert dados["unidade_interna"] == "KG"
+    assert dados["fator_conversao"] == 1.0
 
 
 # 4.2 — GET /itens lista inclui o item criado
@@ -113,3 +116,170 @@ def test_4_8_nome_duplicado(client, admin_user, admin_token):
     payload = {"nome": "Arroz", "unidade_oficial": "KG", "saldo_atual": 10.0}
     assert client.post("/itens", json=payload, headers=_auth(admin_token)).status_code == 200
     assert client.post("/itens", json=payload, headers=_auth(admin_token)).status_code == 409
+
+
+# --- 5.7.1 — Unidades livres com conversão interna ---
+
+# A9-1: Criar item com unidade livre + conversão
+def test_criar_item_unidade_livre_com_conversao(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={
+            "nome": "Ovos Brancos",
+            "unidade_oficial": "Dúzia",
+            "saldo_atual": 10.0,
+            "unidade_interna": "KG",
+            "fator_conversao": 0.96,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["unidade_oficial"] == "Dúzia"
+    assert dados["unidade_interna"] == "KG"
+    assert dados["fator_conversao"] == 0.96
+
+
+# A9-2: Criar item com unidade livre sem conversão → 400
+def test_criar_item_unidade_livre_sem_conversao(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Macarrão", "unidade_oficial": "Pacote", "saldo_atual": 20.0},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "fator_conversao" in resp.json()["detail"].lower() or "unidade_interna" in resp.json()["detail"].lower()
+
+
+# A9-3: Criar item com unidade livre e unidade_interna inválida → 400
+def test_criar_item_unidade_livre_interna_invalida(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={
+            "nome": "Salgadinho",
+            "unidade_oficial": "Caixa",
+            "saldo_atual": 5.0,
+            "unidade_interna": "Un",
+            "fator_conversao": 3.0,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+
+
+# A9-4: Criar item com fator_conversao zero → 400
+def test_criar_item_fator_conversao_zero(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={
+            "nome": "Biscoito",
+            "unidade_oficial": "Pacote",
+            "saldo_atual": 10.0,
+            "unidade_interna": "KG",
+            "fator_conversao": 0,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+
+
+# A9-5: Criar item com fator_conversao negativo → 400
+def test_criar_item_fator_conversao_negativo(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={
+            "nome": "Biscoito Doce",
+            "unidade_oficial": "Pacote",
+            "saldo_atual": 10.0,
+            "unidade_interna": "KG",
+            "fator_conversao": -1,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+
+
+# A9-6: Criar item KG sem conversão (compatibilidade) → 200, defaults aplicados
+def test_criar_item_kg_sem_conversao(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Feijão Carioca", "unidade_oficial": "KG", "saldo_atual": 100.0},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["unidade_oficial"] == "KG"
+    assert dados["unidade_interna"] == "KG"
+    assert dados["fator_conversao"] == 1.0
+
+
+# A9-7: Criar item L sem conversão (compatibilidade) → 200
+def test_criar_item_l_sem_conversao(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Óleo de Soja", "unidade_oficial": "L", "saldo_atual": 50.0},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["unidade_interna"] == "KG"  # default
+    assert dados["fator_conversao"] == 1.0
+
+
+# A9-8: Criar item com unidade livre case-insensitive (funciona pois strip+upper normaliza)
+def test_criar_item_unidade_livre_lowercase(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={
+            "nome": "Cenoura",
+            "unidade_oficial": "maço",
+            "saldo_atual": 3.0,
+            "unidade_interna": "KG",
+            "fator_conversao": 0.3,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["unidade_interna"] == "KG"
+    assert dados["fator_conversao"] == 0.3
+
+
+# A9-9: PUT atualiza unidade_oficial para livre com conversão → 200
+def test_put_atualiza_unidade_livre(client, admin_user, admin_token):
+    criado = client.post(
+        "/itens",
+        json={"nome": "Item KG", "unidade_oficial": "KG", "saldo_atual": 10.0},
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.put(
+        f"/itens/{criado['id']}",
+        json={
+            "unidade_oficial": "Dúzia",
+            "unidade_interna": "KG",
+            "fator_conversao": 0.96,
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["unidade_oficial"] == "Dúzia"
+    assert dados["unidade_interna"] == "KG"
+    assert dados["fator_conversao"] == 0.96
+
+
+# A9-10: PUT tenta unidade livre sem conversão → 400
+def test_put_unidade_livre_sem_conversao(client, admin_user, admin_token):
+    criado = client.post(
+        "/itens",
+        json={"nome": "Item KG 2", "unidade_oficial": "KG", "saldo_atual": 10.0},
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.put(
+        f"/itens/{criado['id']}",
+        json={"unidade_oficial": "Maço"},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400

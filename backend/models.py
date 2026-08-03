@@ -39,13 +39,8 @@ class Item(Base):
     nome = Column(String, unique=True, nullable=False, index=True)
     unidade_oficial = Column(String, nullable=False)
     saldo_atual = Column(Float, default=0.0)
-
-    __table_args__ = (
-        CheckConstraint(
-            unidade_oficial.in_(["KG", "L"]),
-            name="ck_itens_unidade_oficial",
-        ),
-    )
+    unidade_interna = Column(String, default="KG")
+    fator_conversao = Column(Float, default=1.0)
 
 
 class Conversao(Base):

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type { Item, Conversao } from '../../types';
-import { LIMIAR_BAIXO_ESTOQUE } from './constants';
+import { LIMIAR_BAIXO_ESTOQUE, UNIDADES_SUGERIDAS } from './constants';
 import './Itens.css';
 
-type ItemPayload = { nome: string; unidade_oficial: string; saldo_atual: number };
+type ItemPayload = { nome: string; unidade_oficial: string; saldo_atual: number; unidade_interna?: string; fator_conversao?: number };
 
 export default function Itens() {
   const [itens, setItens] = useState<Item[]>([]);
@@ -18,6 +18,8 @@ export default function Itens() {
   const [editando, setEditando] = useState<Item | null>(null);
   const [nome, setNome] = useState('');
   const [unidadeOficial, setUnidadeOficial] = useState('KG');
+  const [unidadeInterna, setUnidadeInterna] = useState('KG');
+  const [fatorConversao, setFatorConversao] = useState('1');
   const [saldoAtual, setSaldoAtual] = useState('0');
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
@@ -86,6 +88,8 @@ export default function Itens() {
     setEditando(null);
     setNome('');
     setUnidadeOficial('KG');
+    setUnidadeInterna('KG');
+    setFatorConversao('1');
     setSaldoAtual('0');
     setErroForm(null);
     setModalAberto(true);
@@ -95,6 +99,8 @@ export default function Itens() {
     setEditando(item);
     setNome(item.nome);
     setUnidadeOficial(item.unidade_oficial);
+    setUnidadeInterna(item.unidade_interna);
+    setFatorConversao(item.fator_conversao.toString());
     setSaldoAtual(item.saldo_atual.toString());
     setErroForm(null);
     setModalAberto(true);
@@ -116,6 +122,13 @@ export default function Itens() {
         unidade_oficial: unidadeOficial,
         saldo_atual: Number(saldoAtual) || 0,
       };
+
+      // Incluir conversão se unidade não for KG nem L
+      const uNorm = unidadeOficial.toUpperCase();
+      if (uNorm !== 'KG' && uNorm !== 'L') {
+        payload.unidade_interna = unidadeInterna;
+        payload.fator_conversao = Number(fatorConversao) || 1;
+      }
 
       if (editando) {
         await fetchJson<Item>(`/itens/${editando.id}`, {
@@ -296,7 +309,10 @@ export default function Itens() {
                             : ''
                         }
                       >
-                        {item.saldo_atual.toFixed(2)}
+                        {item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
+                          ? item.saldo_atual.toFixed(2)
+                          : (item.saldo_atual / item.fator_conversao).toFixed(2)}{' '}
+                        {item.unidade_oficial}
                       </td>
                       <td>
                         {item.saldo_atual < LIMIAR_BAIXO_ESTOQUE ? (
@@ -371,17 +387,66 @@ export default function Itens() {
 
                 <div className="form-group">
                   <label htmlFor="item-unidade">Unidade oficial</label>
-                  <select
+                  <input
                     id="item-unidade"
+                    type="text"
+                    list="unidades-sugeridas"
                     value={unidadeOficial}
                     onChange={(e) => setUnidadeOficial(e.target.value)}
                     className="form-input"
                     required
-                  >
-                    <option value="KG">KG</option>
-                    <option value="L">L</option>
-                  </select>
+                  />
+                  <datalist id="unidades-sugeridas">
+                    {UNIDADES_SUGERIDAS.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
                 </div>
+
+                {unidadeOficial !== 'KG' && unidadeOficial !== 'L' && (
+                  <>
+                    <div className="form-group">
+                      <label>Unidade interna do estoque</label>
+                      <div className="radio-group">
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="unidade-interna"
+                            value="KG"
+                            checked={unidadeInterna === 'KG'}
+                            onChange={() => setUnidadeInterna('KG')}
+                          />
+                          KG
+                        </label>
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="unidade-interna"
+                            value="L"
+                            checked={unidadeInterna === 'L'}
+                            onChange={() => setUnidadeInterna('L')}
+                          />
+                          L
+                        </label>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="item-fator">
+                        Fator de conversão — 1 {unidadeOficial || 'unidade'} equivale a X {unidadeInterna}
+                      </label>
+                      <input
+                        id="item-fator"
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        value={fatorConversao}
+                        onChange={(e) => setFatorConversao(e.target.value)}
+                        className="form-input"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="form-group">
                   <label htmlFor="item-saldo">Saldo atual</label>

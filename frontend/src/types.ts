@@ -43,6 +43,8 @@ export interface Item {
   nome: string;
   unidade_oficial: string;
   saldo_atual: number;
+  unidade_interna: string;
+  fator_conversao: number;
 }
 
 export interface Conversao {

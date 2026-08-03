@@ -385,3 +385,22 @@ select.form-input {
   min-height: 40px;
   white-space: nowrap;
 }
+
+/* Campos condicionais de conversão */
+.radio-group {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  accent-color: var(--verde-escuro);
+}
