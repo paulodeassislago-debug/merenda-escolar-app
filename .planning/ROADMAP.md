@@ -92,7 +92,7 @@ Plans:
 
 **Wave 4** *(pós-fase — melhorias UAT)*
 
-- [ ] 05-07-PLAN.md — Unidade livre com conversão interna + tipo "Lanche" único com slots preservados (Tarefa A + Tarefa B + portões de saída)
+- [x] 05-07-PLAN.md — Unidade livre com conversão interna + tipo "Lanche" único com slots preservados (Tarefa A + Tarefa B + portões de saída)
 
 ### Phase 6: Cozinha + Gestão (Frontend)
 
