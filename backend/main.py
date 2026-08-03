@@ -296,13 +296,13 @@ def excluir_item(
     return {"mensagem": f"Item '{item.nome}' excluído com sucesso!"}
 
 
-# --- CONVERSÕES (GET admin+sec; criar/excluir somente admin) ---
+# --- CONVERSÕES (GET admin+sec+cozinheira; criar/excluir somente admin) ---
 
 @app.get("/conversoes")
 def listar_conversoes(
     item_id: int,
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria", "cozinheira")),
 ):
     conversoes = db.query(models.Conversao).filter(
         models.Conversao.item_id == item_id
@@ -674,6 +674,74 @@ def remover_planejamento(
 
 # --- ENTREGAS (admin+sec) ---
 
+def _normalizar_unidade(unidade: str) -> str:
+    return unidade.strip()
+
+
+def _buscar_conversao(db: Session, item_id: int, unidade: str):
+    unidade_normalizada = _normalizar_unidade(unidade).casefold()
+    return db.query(models.Conversao).filter(
+        models.Conversao.item_id == item_id,
+        func.lower(models.Conversao.medida_caseira) == unidade_normalizada,
+    ).first()
+
+
+def _upsert_conversao(db: Session, item_id: int, unidade: str, fator: float):
+    conversao = _buscar_conversao(db, item_id, unidade)
+    if conversao:
+        conversao.peso_em_kg = fator
+        return conversao
+
+    conversao = models.Conversao(
+        item_id=item_id,
+        medida_caseira=_normalizar_unidade(unidade),
+        peso_em_kg=fator,
+    )
+    db.add(conversao)
+    return conversao
+
+
+def _resolver_fator_entrega(
+    db: Session,
+    item: models.Item,
+    unidade: str | None,
+    fator_informado: float | None,
+    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]],
+) -> tuple[str, float]:
+    unidade_recebida = _normalizar_unidade(unidade or item.unidade_oficial)
+    if unidade_recebida.casefold() == item.unidade_oficial.strip().casefold():
+        return item.unidade_oficial, item.fator_conversao or 1.0
+
+    if not unidade_recebida:
+        raise HTTPException(status_code=400, detail=f"Informe a unidade do item '{item.nome}'")
+
+    chave = (item.id, unidade_recebida.casefold())
+    if fator_informado is not None:
+        if fator_informado <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A conversão de '{unidade_recebida}' para o item '{item.nome}' deve ser maior que zero",
+            )
+        conversao_existente = _buscar_conversao(db, item.id, unidade_recebida)
+        unidade_canonica = conversao_existente.medida_caseira if conversao_existente else unidade_recebida
+        conversoes_pendentes[chave] = (unidade_canonica, fator_informado)
+        return unidade_canonica, fator_informado
+
+    if chave in conversoes_pendentes:
+        return conversoes_pendentes[chave]
+
+    conversao = _buscar_conversao(db, item.id, unidade_recebida)
+    if conversao:
+        return conversao.medida_caseira, conversao.peso_em_kg
+
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Informe quanto 1 {unidade_recebida} equivale em {item.unidade_interna} "
+            f"para o item '{item.nome}'"
+        ),
+    )
+
 @app.post("/entregas")
 def registrar_entrega(
     dados: schemas.EntregaCreate,
@@ -687,6 +755,8 @@ def registrar_entrega(
     - `excluído`: não altera o saldo, justificativa obrigatória
     """
     # 1. Validar tudo antes de gravar qualquer coisa
+    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] = {}
+    fatores_resolvidos: list[tuple[str, float]] = []
     for item_req in dados.itens:
         if item_req.acao not in ACOES_ENTREGA_VALIDAS:
             raise HTTPException(
@@ -702,19 +772,38 @@ def registrar_entrega(
         if not item:
             raise HTTPException(status_code=404, detail=f"Item com id {item_req.item_id} não encontrado")
 
+        if item_req.acao in ("recebido", "alterado"):
+            unidade, fator = _resolver_fator_entrega(
+                db,
+                item,
+                item_req.unidade,
+                item_req.fator_conversao,
+                conversoes_pendentes,
+            )
+            fatores_resolvidos.append((unidade, fator))
+        else:
+            unidade = _normalizar_unidade(item_req.unidade or item.unidade_oficial)
+            fator = item.fator_conversao or 1.0
+            fatores_resolvidos.append((unidade, fator))
+
     # 2. Criar a entrega e os itens, atualizando o estoque
+    for (item_id, _), (unidade, fator) in conversoes_pendentes.items():
+        _upsert_conversao(db, item_id, unidade, fator)
+
     entrega = models.Entrega(id_usuario=usuario.id)
     db.add(entrega)
     db.flush()  # garante o id antes de gravar os itens
 
-    for item_req in dados.itens:
+    for item_req, (unidade, fator) in zip(dados.itens, fatores_resolvidos):
         item = db.query(models.Item).filter(models.Item.id == item_req.item_id).first()
         if item_req.acao in ("recebido", "alterado"):
-            item.saldo_atual += item_req.quantidade * item.fator_conversao
+            item.saldo_atual += item_req.quantidade * fator
         db.add(models.ItemEntrega(
             entrega_id=entrega.id,
             item_id=item_req.item_id,
             quantidade=item_req.quantidade,
+            unidade=unidade,
+            fator_conversao=fator,
             justificativa=item_req.justificativa,
             acao=item_req.acao,
         ))
@@ -767,6 +856,8 @@ def detalhar_entrega(
                 "item_nome": (db.query(models.Item).filter(models.Item.id == ie.item_id).first() or {}).nome
                 if db.query(models.Item).filter(models.Item.id == ie.item_id).first() else None,
                 "quantidade": ie.quantidade,
+                "unidade": ie.unidade,
+                "fator_conversao": ie.fator_conversao,
                 "acao": ie.acao,
                 "justificativa": ie.justificativa,
             }
@@ -777,21 +868,45 @@ def detalhar_entrega(
 
 # --- REFEIÇÕES (lançamento cozinheira; leitura admin/sec) ---
 
-def _converter_para_unidade_oficial(db: Session, item: models.Item, quantidade: float, medida: str) -> float:
+def _converter_para_unidade_oficial(
+    db: Session,
+    item: models.Item,
+    quantidade: float,
+    medida: str,
+    peso_informado: float | None = None,
+    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] | None = None,
+) -> float:
     """Converte `quantidade` na `medida` para a unidade oficial do item (KG/L).
 
     Levanta HTTPException 400 se a medida for caseira e não houver conversão cadastrada.
     """
-    if medida.upper() in ["KG", "L", "LITRO", "LITROS"]:
+    medida_normalizada = _normalizar_unidade(medida)
+    if medida_normalizada.upper() in ["KG", "L", "LITRO", "LITROS"]:
         return quantidade
-    conversao = db.query(models.Conversao).filter(
-        models.Conversao.item_id == item.id,
-        models.Conversao.medida_caseira == medida,
-    ).first()
+    chave = (item.id, medida_normalizada.casefold())
+    if peso_informado is not None:
+        if peso_informado <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A conversão de '{medida_normalizada}' para o item '{item.nome}' deve ser maior que zero",
+            )
+        conversao_existente = _buscar_conversao(db, item.id, medida_normalizada)
+        unidade_canonica = conversao_existente.medida_caseira if conversao_existente else medida_normalizada
+        if conversoes_pendentes is not None:
+            conversoes_pendentes[chave] = (unidade_canonica, peso_informado)
+        return quantidade * peso_informado
+
+    if conversoes_pendentes and chave in conversoes_pendentes:
+        return quantidade * conversoes_pendentes[chave][1]
+
+    conversao = _buscar_conversao(db, item.id, medida_normalizada)
     if not conversao:
         raise HTTPException(
             status_code=400,
-            detail=f"Sem conversão cadastrada de '{medida}' para o item '{item.nome}'. Cadastre em /conversoes primeiro.",
+            detail=(
+                f"Sem conversão cadastrada de '{medida_normalizada}' para o item '{item.nome}'. "
+                "Informe peso_em_kg para cadastrar a conversão no lançamento."
+            ),
         )
     return quantidade * conversao.peso_em_kg
 
@@ -826,12 +941,20 @@ def lancar_refeicao_v2(
 
     # 1. Validar tudo antes de gravar/deduzir qualquer coisa
     preparados = []
+    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] = {}
     for item_req in dados.itens:
         item = db.query(models.Item).filter(models.Item.id == item_req.item_id).first()
         if not item:
             raise HTTPException(status_code=400, detail=f"Item com id {item_req.item_id} não encontrado no estoque")
 
-        qtd_oficial = _converter_para_unidade_oficial(db, item, item_req.quantidade, item_req.medida_caseira)
+        qtd_oficial = _converter_para_unidade_oficial(
+            db,
+            item,
+            item_req.quantidade,
+            item_req.medida_caseira,
+            item_req.peso_em_kg,
+            conversoes_pendentes,
+        )
 
         if item.saldo_atual < qtd_oficial:
             raise HTTPException(
@@ -853,7 +976,10 @@ def lancar_refeicao_v2(
 
         preparados.append((item, item_req, qtd_oficial, receita_item))
 
-    # 2. Deduzir estoque e gravar registros
+    # 2. Persistir conversões novas e deduzir estoque
+    for (item_id, _), (medida, peso) in conversoes_pendentes.items():
+        _upsert_conversao(db, item_id, medida, peso)
+
     refeicao = models.Refeicao(
         tipo_refeicao=dados.tipo_refeicao,
         id_usuario=usuario.id,

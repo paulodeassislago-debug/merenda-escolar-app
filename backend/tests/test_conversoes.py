@@ -70,18 +70,25 @@ def test_5_4_sem_token(client):
     assert client.delete("/conversoes/1").status_code == 401
 
 
-# 5.5 — Perfil errado (cozinheira) → 403 em todas as rotas;
-#         secretaria pode consultar (GET) mas não criar/excluir
+# 5.5 — Cozinheira pode consultar (GET), mas não criar/excluir;
+#         secretaria também pode consultar (GET), mas não criar/excluir
 def test_5_5_perfil_errado(client, admin_user, admin_token, cozinheira_user, cozinheira_token, secretaria_user, secretaria_token):
     item = _criar_item(client, admin_token)
 
-    # Cozinheira: nem GET nem mutações
-    assert client.get(f"/conversoes?item_id={item['id']}", headers=_auth(cozinheira_token)).status_code == 403
+    criada = client.post(
+        "/conversoes",
+        json={"item_id": item["id"], "medida_caseira": "xícara", "peso_em_kg": 0.18},
+        headers=_auth(admin_token),
+    ).json()
+
+    # Cozinheira: leitura permitida, mutações bloqueadas
+    assert client.get(f"/conversoes?item_id={item['id']}", headers=_auth(cozinheira_token)).status_code == 200
     assert client.post(
         "/conversoes",
         json={"item_id": item["id"], "medida_caseira": "xícara", "peso_em_kg": 0.18},
         headers=_auth(cozinheira_token),
     ).status_code == 403
+    assert client.delete(f"/conversoes/{criada['id']}", headers=_auth(cozinheira_token)).status_code == 403
 
     # Secretaria: GET permitido
     assert client.get(f"/conversoes?item_id={item['id']}", headers=_auth(secretaria_token)).status_code == 200
