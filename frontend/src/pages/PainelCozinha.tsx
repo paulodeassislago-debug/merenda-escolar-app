@@ -16,6 +16,7 @@ interface IngredienteRascunho {
   quantidadeAtual: number;
   medidaOriginal: string;
   medidaSelecionada: string;
+  justificativa: string;
   conversoes: Conversao[];
 }
 
@@ -61,6 +62,10 @@ function medidaInicial(receita: ReceitaItem, conversoes: Conversao[]): string {
     (conversao) => normalizarMedida(conversao.medida_caseira) === normalizarMedida(receita.medida_caseira),
   );
   return equivalente?.medida_caseira ?? conversoes[0]?.medida_caseira ?? '';
+}
+
+function itemTemDivergencia(item: IngredienteRascunho): boolean {
+  return item.quantidadeAtual !== item.quantidadeOriginal;
 }
 
 export default function PainelCozinha() {
@@ -133,6 +138,7 @@ export default function PainelCozinha() {
             quantidadeAtual: item.quantidade,
             medidaOriginal: item.medida_caseira,
             medidaSelecionada: medidaInicial(item, conversoes),
+            justificativa: '',
             conversoes,
           } satisfies IngredienteRascunho;
         }),
@@ -168,6 +174,12 @@ export default function PainelCozinha() {
     )));
   };
 
+  const atualizarJustificativa = (index: number, valor: string) => {
+    setIngredientes((atuais) => atuais.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, justificativa: valor } : item
+    )));
+  };
+
   const relerDepoisDaTentativa = async (): Promise<boolean> => {
     try {
       const [novoPlanejamento, novosItens] = await Promise.all([
@@ -191,8 +203,15 @@ export default function PainelCozinha() {
       (item) => item.quantidadeAtual >= 0 && Number.isFinite(item.quantidadeAtual)
         && item.medidaSelecionada !== '' && item.conversoes.length > 0,
     );
-    if (!qtdValida || !ingredientesValidos) {
-      setErroEnvio('Informe uma quantidade inteira e positiva de alunos e escolha uma conversão cadastrada para cada ingrediente.');
+    const justificativasValidas = ingredientes.every(
+      (item) => !itemTemDivergencia(item) || item.justificativa.trim() !== '',
+    );
+    if (!qtdValida || !ingredientesValidos || !justificativasValidas) {
+      setErroEnvio(
+        !justificativasValidas
+          ? 'Informe a justificativa de cada ingrediente com quantidade alterada antes de confirmar.'
+          : 'Informe uma quantidade inteira e positiva de alunos e escolha uma conversão cadastrada para cada ingrediente.',
+      );
       return;
     }
 
@@ -209,6 +228,7 @@ export default function PainelCozinha() {
             item_id: item.itemId,
             quantidade: item.quantidadeAtual,
             medida_caseira: item.medidaSelecionada,
+            justificativa: item.justificativa.trim() || null,
           })),
         }),
       });
@@ -401,6 +421,25 @@ export default function PainelCozinha() {
                             ))}
                           </select>
                           {semConversao && <p className="campo-erro">Nenhuma conversão cadastrada. Solicite ao admin o cadastro em Itens/Conversões.</p>}
+                          {itemTemDivergencia(item) && (
+                            <div className="justificativa-controle">
+                              <label htmlFor={`justificativa-${item.itemId}`}>
+                                Justificativa da alteração
+                              </label>
+                              <textarea
+                                id={`justificativa-${item.itemId}`}
+                                value={item.justificativa}
+                                onChange={(evento) => atualizarJustificativa(index, evento.target.value)}
+                                aria-describedby={`ajuda-justificativa-${item.itemId}`}
+                                aria-invalid={item.justificativa.trim() === ''}
+                                rows={3}
+                                placeholder="Explique a divergência desta quantidade"
+                              />
+                              <span id={`ajuda-justificativa-${item.itemId}`} className="campo-ajuda">
+                                Obrigatória quando a quantidade divergir da receita original.
+                              </span>
+                            </div>
+                          )}
                         </div>
                         {saldos[item.itemId] && <p className="saldo-atual">Saldo após a última leitura: {saldos[item.itemId].saldo_atual} {saldos[item.itemId].unidade_interna}</p>}
                       </div>
@@ -410,7 +449,7 @@ export default function PainelCozinha() {
 
                 <footer className="modal-acoes">
                   <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
-                  <button type="submit" className="botao-primario" disabled={salvando || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '')}>
+                  <button type="submit" className="botao-primario" disabled={salvando || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
                     {salvando ? 'Registrando…' : 'Confirmar refeição e dar baixa'}
                   </button>
                 </footer>

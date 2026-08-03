@@ -105,8 +105,23 @@ select {
   padding: 8px;
 }
 
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--branco);
+  color: var(--texto);
+  font: inherit;
+  line-height: 1.5;
+  padding: 8px;
+}
+
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 button:focus-visible {
   outline: 3px solid var(--verde-vivo);
   outline-offset: 2px;
@@ -315,7 +330,8 @@ button:disabled {
 }
 
 .campo-formulario,
-.ingrediente-controles {
+.ingrediente-controles,
+.justificativa-controle {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -366,6 +382,12 @@ button:disabled {
 .campo-erro,
 .estado-erro-inline {
   color: var(--erro);
+}
+
+.justificativa-controle {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--borda);
 }
 
 .estado-erro-inline {
