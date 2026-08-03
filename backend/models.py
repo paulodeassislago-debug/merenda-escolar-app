@@ -66,7 +66,7 @@ class CardapioItem(Base):
     __table_args__ = (
         CheckConstraint(
             tipo_refeicao.in_(
-                ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
+                ["Lanche", "Almoço", "Janta"]
             ),
             name="ck_cardapio_tipo_refeicao",
         ),

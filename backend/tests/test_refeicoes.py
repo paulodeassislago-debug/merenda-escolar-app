@@ -1,5 +1,6 @@
 # Fase 3.3 — Refeições (R1–R6 do TESTING.md)
 # POST somente cozinheira; GET /refeicoes admin+sec; GET /refeicoes/hoje admin+cozinheira
+# Fase 5.7 — Tipo "Lanche" unificado
 
 
 def _auth(token: str) -> dict:
@@ -102,13 +103,13 @@ def test_r4_item_inexistente(client, admin_user, admin_token, cozinheira_user, c
     assert "não encontrado" in resp.json()["detail"].lower()
 
 
-# R5 — GET /refeicoes/hoje → status pendente/confirmado por tipo
+# R5 — GET /refeicoes/hoje → status pendente/confirmado por tipo (3 tipos: Lanche, Almoço, Janta)
 def test_r5_refeicoes_hoje_status(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
     item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
 
-    # Antes do lançamento: tudo pendente
+    # Antes do lançamento: tudo pendente (3 tipos)
     status = client.get("/refeicoes/hoje", headers=_auth(cozinheira_token)).json()
-    assert len(status) == 4
+    assert len(status) == 3
     assert all(s["status"] == "pendente" for s in status)
 
     # Lança o almoço
@@ -126,7 +127,7 @@ def test_r5_refeicoes_hoje_status(client, admin_user, admin_token, cozinheira_us
     por_tipo = {s["tipo_refeicao"]: s for s in status}
     assert por_tipo["Almoço"]["status"] == "confirmado"
     assert por_tipo["Almoço"]["alunos"] == 200
-    assert por_tipo["Lanche da Manhã"]["status"] == "pendente"
+    assert por_tipo["Lanche"]["status"] == "pendente"
     assert por_tipo["Janta"]["status"] == "pendente"
 
 
@@ -289,3 +290,36 @@ def test_r10_conforme_receita_sem_justificativa(client, admin_user, admin_token,
     almoco = next(s for s in status if s["tipo_refeicao"] == "Almoço")
     assert almoco["status"] == "confirmado"
     assert almoco["prato"] == "Músculo com Batata"
+
+
+# B10-1 — POST /refeicoes com tipo "Lanche" (unificado) → 200
+def test_refeicoes_tipo_lanche(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "tipo_refeicao": "Lanche",
+            "qtd_alunos": 100,
+            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 8.0
+
+
+# B10-2 — POST /refeicoes com tipo antigo "Lanche da Manhã" → 400
+def test_refeicoes_tipo_antigo_rejeitado(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "tipo_refeicao": "Lanche da Manhã",
+            "qtd_alunos": 100,
+            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 400

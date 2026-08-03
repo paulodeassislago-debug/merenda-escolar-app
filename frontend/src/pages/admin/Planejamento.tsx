@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type { PlanejamentoEntrada, CardapioItem } from '../../types';
-import { DIAS_SEMANA, TIPOS_REFEICAO } from './constants';
+import { DIAS_SEMANA, TIPOS_REFEICAO, SLOTS_REFEICAO } from './constants';
 import './Planejamento.css';
 
 // --- Helpers locais (não exportados — regra react-refresh) ---
@@ -39,8 +39,8 @@ function chaveSlot(diaSemana: number, tipoRefeicao: string): string {
 function buildSelecoes(entradasData: PlanejamentoEntrada[]): Record<string, number | null> {
   const mapa: Record<string, number | null> = {};
   for (let dia = 0; dia < 7; dia++) {
-    for (const tipo of TIPOS_REFEICAO) {
-      mapa[chaveSlot(dia, tipo)] = null;
+    for (const slot of SLOTS_REFEICAO) {
+      mapa[chaveSlot(dia, slot)] = null;
     }
   }
   for (const e of entradasData) {
@@ -142,8 +142,8 @@ export default function Planejamento() {
 
     try {
       for (let dia = 0; dia < 7; dia++) {
-        for (const tipo of TIPOS_REFEICAO) {
-          const chave = chaveSlot(dia, tipo);
+        for (const slot of SLOTS_REFEICAO) {
+          const chave = chaveSlot(dia, slot);
           const novoValor = selecoes[chave];
           const entradaVigente = mapaVigente[chave];
 
@@ -157,7 +157,7 @@ export default function Planejamento() {
               method: 'POST',
               body: JSON.stringify({
                 cardapio_item_id: novoValor,
-                tipo_refeicao: tipo,
+                tipo_refeicao: slot,
                 dia_semana: dia,
                 data_inicio_vigencia: formatISO(segundaDaSemana(semanaRef)),
               }),
@@ -256,8 +256,8 @@ export default function Planejamento() {
               <thead>
                 <tr>
                   <th className="planejamento-dia-col" />
-                  {TIPOS_REFEICAO.map((tipo) => (
-                    <th key={tipo}>{tipo}</th>
+                  {SLOTS_REFEICAO.map((slot) => (
+                    <th key={slot}>{slot}</th>
                   ))}
                 </tr>
               </thead>
@@ -265,15 +265,21 @@ export default function Planejamento() {
                 {DIAS_SEMANA.map((dia, diaIdx) => (
                   <tr key={diaIdx}>
                     <td className="planejamento-dia-col">{dia}</td>
-                    {TIPOS_REFEICAO.map((tipoRefeicao) => {
-                      const chave = chaveSlot(diaIdx, tipoRefeicao);
+                    {SLOTS_REFEICAO.map((slot) => {
+                      const chave = chaveSlot(diaIdx, slot);
                       const valorAtual = selecoes[chave] ?? '';
+
+                      // Mapeamento: slots de lanche filtram pratos tipo "Lanche"
+                      const tipoParaFiltro =
+                        slot === 'Lanche da Manhã' || slot === 'Lanche da Tarde'
+                          ? 'Lanche'
+                          : slot;
                       const pratosFiltrados = pratos.filter(
-                        (p) => p.tipo_refeicao === tipoRefeicao,
+                        (p) => p.tipo_refeicao === tipoParaFiltro,
                       );
 
                       return (
-                        <td key={tipoRefeicao} className="planejamento-celula">
+                        <td key={slot} className="planejamento-celula">
                           <select
                             className={`form-input planejamento-select ${!valorAtual ? 'celula-vazia' : ''}`}
                             value={String(valorAtual)}

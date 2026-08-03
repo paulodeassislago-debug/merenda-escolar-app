@@ -5,7 +5,7 @@ import type { Ingrediente, PratoPadrao } from '../types';
 
 // Nosso cardápio base predefinido (no futuro virá do banco de dados)
 const cardapiosPadrao: Record<string, PratoPadrao> = {
-  "Lanche da Manhã": {
+  "Lanche": {
     prato: "Cuscuz Nordestino com Ovos",
     ingredientes: [
       { nome: "Flocão de Milho", qtd: 5, medida: "pacotes" },
@@ -21,14 +21,6 @@ const cardapiosPadrao: Record<string, PratoPadrao> = {
       { nome: "Músculo Bovino", qtd: 10, medida: "kg" },
       { nome: "Batatinha", qtd: 9.6, medida: "kg" },
       { nome: "Sal Refinado", qtd: 10, medida: "colheres de sopa" }
-    ]
-  },
-  "Lanche da Tarde": {
-    prato: "Mingau de Fubá com Canela",
-    ingredientes: [
-      { nome: "Fubá de Milho", qtd: 4, medida: "pacotes" },
-      { nome: "Leite em Pó Integral", qtd: 2, medida: "kg" },
-      { nome: "Açúcar Cristal", qtd: 1, medida: "kg" }
     ]
   },
   "Janta": {
@@ -140,9 +132,8 @@ export default function PainelCozinha() {
               onChange={handleSelecionarRefeicao}
             >
               <option value="" disabled>-- Selecione o tipo de refeição --</option>
-              <option value="Lanche da Manhã">☕ Lanche da Manhã</option>
+              <option value="Lanche">🍽️ Lanche</option>
               <option value="Almoço">🍽️ Almoço</option>
-              <option value="Lanche da Tarde">🥪 Lanche da Tarde</option>
               <option value="Janta">🍲 Janta</option>
             </select>
 

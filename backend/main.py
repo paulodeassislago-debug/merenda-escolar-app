@@ -37,7 +37,8 @@ def get_db():
 # Valores válidos (espelham os CHECK constraints de models.py)
 PERFIS_VALIDOS = ["admin", "secretaria", "cozinheira"]
 UNIDADES_OFICIAIS_INTERNAS = {"KG", "L"}
-TIPOS_REFEICAO_VALIDOS = ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
+TIPOS_REFEICAO_VALIDOS = ["Lanche", "Almoço", "Janta"]
+SLOTS_PLANEJAMENTO = ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
 ACOES_ENTREGA_VALIDAS = ["recebido", "alterado", "excluído"]
 
 # Saldo abaixo deste valor (na unidade oficial) é considerado baixo estoque
@@ -619,10 +620,10 @@ def definir_planejamento(
     """Define (ou altera) o prato de um slot dia_semana × tipo_refeicao a partir de uma vigência."""
     if dados.dia_semana < 0 or dados.dia_semana > 6:
         raise HTTPException(status_code=400, detail="dia_semana deve estar entre 0 (segunda) e 6 (domingo)")
-    if dados.tipo_refeicao not in TIPOS_REFEICAO_VALIDOS:
+    if dados.tipo_refeicao not in SLOTS_PLANEJAMENTO:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipo de refeição inválido. Use: {', '.join(TIPOS_REFEICAO_VALIDOS)}",
+            detail=f"Tipo de refeição inválido. Use: {', '.join(SLOTS_PLANEJAMENTO)}",
         )
 
     prato = db.query(models.CardapioItem).filter(

@@ -1,6 +1,7 @@
 # Fase 2.4 + 2.5 — CRUD de cardápio e receitas
 # Cardápio: GET admin+sec; CRUD somente admin
 # Receitas: GET para todos os perfis; CRUD somente admin
+# Fase 5.7 — Tipo "Lanche" unificado
 
 
 def _auth(token: str) -> dict:
@@ -121,6 +122,35 @@ def test_6_7_tipo_refeicao_invalido(client, admin_user, admin_token):
     resp = client.post(
         "/cardapio",
         json={"nome_refeicao": "X", "tipo_refeicao": "Ceia"},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+
+
+# B8-1 — POST /cardapio com tipo "Lanche" (unificado) → 200
+def test_cardapio_tipo_lanche(client, admin_user, admin_token):
+    resp = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Pão com Ovo", "tipo_refeicao": "Lanche"},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["tipo_refeicao"] == "Lanche"
+
+
+# B8-2 — Tipos antigos ("Lanche da Manhã", "Lanche da Tarde") são rejeitados → 400
+def test_cardapio_tipo_antigo_rejeitado(client, admin_user, admin_token):
+    resp = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Pão com Ovo", "tipo_refeicao": "Lanche da Manhã"},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+
+    resp = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Mingau", "tipo_refeicao": "Lanche da Tarde"},
         headers=_auth(admin_token),
     )
     assert resp.status_code == 400

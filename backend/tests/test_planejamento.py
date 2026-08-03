@@ -1,4 +1,5 @@
 # Fase 3.1 — Planejamento semanal (GET para todos; definir/remover admin+sec)
+# Fase 5.7 — SLOTS_PLANEJAMENTO com 4 colunas
 from datetime import date
 
 
@@ -6,10 +7,10 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _criar_prato(client, admin_token, nome="Músculo com Batata") -> dict:
+def _criar_prato(client, admin_token, nome="Músculo com Batata", tipo="Almoço") -> dict:
     return client.post(
         "/cardapio",
-        json={"nome_refeicao": nome, "tipo_refeicao": "Almoço"},
+        json={"nome_refeicao": nome, "tipo_refeicao": tipo},
         headers=_auth(admin_token),
     ).json()
 
@@ -165,3 +166,55 @@ def test_8_9_vigencia_futura_nao_aparece(client, admin_user, admin_token):
     # Consulta após a vigência → slot preenchido
     lista = client.get("/planejamento?data=2026-08-05", headers=_auth(admin_token)).json()
     assert len(lista) == 1
+
+
+# B9-1 — POST /planejamento com prato tipo "Lanche" no slot "Lanche da Manhã" → 200
+def test_planejamento_lanche_slot_manha(client, admin_user, admin_token):
+    prato = _criar_prato(client, admin_token, "Pão com Ovo", tipo="Lanche")
+    resp = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Lanche da Manhã",
+            "dia_semana": 0,
+            "data_inicio_vigencia": "2026-07-27",
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["tipo_refeicao"] == "Lanche da Manhã"
+
+
+# B9-2 — POST /planejamento com prato tipo "Lanche" no slot "Lanche da Tarde" → 200
+def test_planejamento_lanche_slot_tarde(client, admin_user, admin_token):
+    prato = _criar_prato(client, admin_token, "Mingau de Fubá", tipo="Lanche")
+    resp = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Lanche da Tarde",
+            "dia_semana": 0,
+            "data_inicio_vigencia": "2026-07-27",
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["tipo_refeicao"] == "Lanche da Tarde"
+
+
+# B9-3 — Slot inválido (fora de SLOTS_PLANEJAMENTO) → 400
+def test_planejamento_slot_invalido(client, admin_user, admin_token):
+    prato = _criar_prato(client, admin_token, "Músculo com Batata")
+    resp = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Café da Manhã",
+            "dia_semana": 0,
+            "data_inicio_vigencia": "2026-07-27",
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400

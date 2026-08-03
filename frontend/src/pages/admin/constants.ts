@@ -3,7 +3,9 @@
 
 import type { Perfil } from '../../types';
 
-export const TIPOS_REFEICAO = ['Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Janta'] as const;
+export const TIPOS_REFEICAO = ['Lanche', 'Almoço', 'Janta'] as const;
+
+export const SLOTS_REFEICAO = ['Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Janta'] as const;
 
 export const UNIDADES_SUGERIDAS = ['KG', 'L', 'Un', 'Pacote', 'Penca', 'Caixa', 'Dúzia', 'Maço'] as const;
 
