@@ -205,7 +205,7 @@ def criar_item(
     novo = models.Item(
         nome=dados.nome,
         unidade_oficial=dados.unidade_oficial,
-        saldo_atual=dados.saldo_atual,
+        saldo_atual=dados.saldo_atual * (dados.fator_conversao or 1.0),
         unidade_interna=dados.unidade_interna or "KG",
         fator_conversao=dados.fator_conversao or 1.0,
     )
@@ -267,7 +267,7 @@ def atualizar_item(
         item.fator_conversao = dados.fator_conversao
 
     if dados.saldo_atual is not None:
-        item.saldo_atual = dados.saldo_atual
+        item.saldo_atual = dados.saldo_atual * item.fator_conversao
 
     db.commit()
     db.refresh(item)
@@ -963,8 +963,15 @@ def dashboard_admin(
     # 1. Estoque
     itens = db.query(models.Item).all()
     criticos = [
-        {"id": i.id, "nome": i.nome, "saldo_atual": i.saldo_atual}
-        for i in itens if i.saldo_atual < LIMIAR_BAIXO_ESTOQUE
+        {
+            "id": i.id,
+            "nome": i.nome,
+            "saldo_atual": i.saldo_atual / (i.fator_conversao or 1.0),
+            "unidade_oficial": i.unidade_oficial,
+            "fator_conversao": i.fator_conversao or 1.0,
+        }
+        for i in itens
+        if (i.saldo_atual / (i.fator_conversao or 1.0)) < LIMIAR_BAIXO_ESTOQUE
     ]
 
     # 2. Refeições de hoje (mesmo formato de /refeicoes/hoje)

@@ -101,7 +101,12 @@ export default function Itens() {
     setUnidadeOficial(item.unidade_oficial);
     setUnidadeInterna(item.unidade_interna);
     setFatorConversao(item.fator_conversao.toString());
-    setSaldoAtual(item.saldo_atual.toString());
+    setSaldoAtual(
+      (item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
+        ? item.saldo_atual
+        : item.saldo_atual / item.fator_conversao
+      ).toString()
+    );
     setErroForm(null);
     setModalAberto(true);
   };
@@ -304,7 +309,10 @@ export default function Itens() {
                       <td>{item.unidade_oficial}</td>
                       <td
                         className={
-                          item.saldo_atual < LIMIAR_BAIXO_ESTOQUE
+                          (item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
+                            ? item.saldo_atual
+                            : item.saldo_atual / item.fator_conversao
+                          ) < LIMIAR_BAIXO_ESTOQUE
                             ? 'saldo-baixo'
                             : ''
                         }
@@ -315,7 +323,10 @@ export default function Itens() {
                         {item.unidade_oficial}
                       </td>
                       <td>
-                        {item.saldo_atual < LIMIAR_BAIXO_ESTOQUE ? (
+                        {(item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
+                          ? item.saldo_atual
+                          : item.saldo_atual / item.fator_conversao
+                        ) < LIMIAR_BAIXO_ESTOQUE ? (
                           <span className="status-alerta">Baixo estoque</span>
                         ) : (
                           <span className="status-ok">OK</span>

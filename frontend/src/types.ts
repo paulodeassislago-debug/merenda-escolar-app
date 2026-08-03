@@ -112,6 +112,8 @@ export interface DashboardItemCritico {
   id: number;
   nome: string;
   saldo_atual: number;
+  unidade_oficial: string;
+  fator_conversao: number;
 }
 
 export interface DashboardEstoque {

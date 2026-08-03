@@ -124,7 +124,7 @@ export default function Dashboard() {
                   <li key={item.id}>
                     <span className="dashboard-lista-nome">{item.nome}</span>
                     <span className="dashboard-lista-saldo">
-                      {item.saldo_atual.toFixed(2)}
+                      {item.saldo_atual.toFixed(2)} {item.unidade_oficial}
                     </span>
                   </li>
                 ))}
