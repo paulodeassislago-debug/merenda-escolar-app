@@ -83,6 +83,8 @@ export interface ItemEntrega {
   item_id: number;
   item_nome: string;
   quantidade: number;
+  unidade?: string | null;
+  fator_conversao?: number | null;
   acao: string;
   justificativa: string | null;
 }
@@ -105,6 +107,8 @@ export interface EntregaItemRequest {
   item_id: number;
   quantidade: number;
   acao: AcaoEntrega;
+  unidade?: string;
+  fator_conversao?: number;
   justificativa?: string | null;
 }
 
@@ -145,4 +149,23 @@ export interface DashboardResponse {
   refeicoes_hoje: DashboardRefeicaoHoje[];
   entregas: DashboardEntregas;
   alunos_hoje: DashboardAlunosHoje;
+}
+
+export interface RefeicaoItemHistorico {
+  item_id: number;
+  item_nome: string | null;
+  quantidade_original: number;
+  quantidade_ajustada: number;
+  medida_caseira: string;
+  justificativa: string | null;
+}
+
+export interface RefeicaoHistorico {
+  id: number;
+  data_hora: string;
+  tipo_refeicao: string;
+  qtd_alunos: number;
+  id_usuario: number;
+  planejamento_id: number | null;
+  itens: RefeicaoItemHistorico[];
 }
