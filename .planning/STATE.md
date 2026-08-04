@@ -5,7 +5,7 @@ milestone_name: Sistema de Gestao da Cozinha Escolar
 current_phase: 06
 current_phase_name: cozinha-gestao-frontend
 status: complete
-stopped_at: Phase 07 context gathered
+stopped_at: Phase 07 UI-SPEC approved
 last_updated: "2026-08-04"
 last_activity: 2026-08-04
 last_activity_desc: planos 06-01 e 06-02 implementados, segurança verificada e UAT manual F13-F15 validado no navegador
@@ -77,5 +77,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-08-04
-Stopped at: Phase 07 context gathered
-Resume file: .planning/phases/07-finalizacao/07-CONTEXT.md
+Stopped at: Phase 07 UI-SPEC approved
+Resume file: .planning/phases/07-finalizacao/07-UI-SPEC.md
