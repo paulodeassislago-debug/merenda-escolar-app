@@ -1,134 +1,148 @@
-# Roadmap: Sistema de Gestão da Cozinha Escolar (PNAE)
+# Roadmap: Sistema de Gestao da Cozinha Escolar (PNAE)
 
 ## Overview
 
-Sistema web para o Colégio Estadual do Campo Nancy de Castro Esteves — controle automático de estoque com baixa por consumo real, conversão de medidas caseiras → kg/L, planejamento semanal de cardápio, e auditoria de ajustes da cozinha, em conformidade com PNAE/SEC-BA. Backend-first com testes, depois frontend consome. Fonte detalhada: `.planning/PLAN.md` (plano de ação completo com tarefas por fase).
+Construir e finalizar o sistema web de gestao da cozinha escolar em incrementos backend-first. As fases 1-4 estabilizaram o backend e a infraestrutura frontend; a fase 5 entregou o painel administrativo; a fase 6 moderniza cozinha e gestao; a fase 7 fecha experiencia publica, testes e verificacao ponta a ponta; a fase 8 concentra melhorias operacionais posteriores.
 
 ## Phases
 
-- [x] **Phase 1: Fundação Backend** - Refatorar base (schemas.py, models.py, .env, require_perfil) sem quebrar testes
-- [x] **Phase 2: CRUD Endpoints (Backend)** - CRUDs protegidos por perfil: usuários, itens, conversões, cardápio, receitas
-- [x] **Phase 3: Lógica de Negócio (Backend)** - Planejamento, entregas, refeições auditadas, dashboard, cardápio público
-- [x] **Phase 4: Fundação Frontend** - Auth JWT real: api.ts, AuthContext, ProtectedRoute, Layout, Login, rotas
-- [ ] **Phase 5: Páginas Admin (Frontend)** - 7 páginas do painel administrativo
-- [ ] **Phase 6: Cozinha + Gestão (Frontend)** - Painéis com dados reais e auditoria de ajustes
-- [ ] **Phase 7: Finalização** - Cardápio público polido, suite completa de testes, ponto a ponta
+- [x] **Phase 1: Fundacao Backend** - Modelos, schemas, configuracao, JWT e autorizacao base.
+- [x] **Phase 2: CRUD Endpoints (Backend)** - CRUDs protegidos de usuarios, itens, conversoes, cardapio e receitas.
+- [x] **Phase 3: Logica de Negocio (Backend)** - Planejamento, entregas, refeicoes auditadas, dashboard e cardapio publico.
+- [x] **Phase 4: Fundacao Frontend** - Auth JWT real, cliente API, rotas protegidas e layout.
+- [x] **Phase 5: Paginas Admin (Frontend)** - Sete paginas administrativas, entregas XML e portoes de saida.
+- [x] **Phase 6: Cozinha + Gestao (Frontend)** - Painel da cozinheira e painel da secretaria com dados reais; implementação, segurança e UAT concluídos.
+- [ ] **Phase 7: Finalizacao** - Cardapio publico, testes manuais completos e verificacao ponta a ponta.
+- [ ] **Phase 8: Improvements** - Melhorias de limiar por item, cadastro inline de itens XML e sugestoes inteligentes de correspondencia.
 
 ## Phase Details
 
-### Phase 1: Fundação Backend
-
-**Goal**: Refatorar a base sem quebrar os 6 testes existentes; preparar terreno para as fases seguintes
-**Depends on**: Nothing (first phase)
-**Success Criteria** (what must be TRUE):
-
-  1. `pytest backend/tests/ -v` 6/6 passando
-  2. Backend sobe com schema novo (`uvicorn main:app`)
-
-**Plans**: Executed pre-GSD (detalhes em PLAN.md Fase 1, tarefas 1.1–1.6)
+### Phase 1: Fundacao Backend
+**Goal**: Preparar modelos, schemas, ambiente e autorizacao sem quebrar a base existente.
+**Depends on**: Nothing
+**Requirements**: AUTH-01, AUTH-02, AUTH-03, STOCK-01, QUAL-01
+**Success Criteria**:
+  1. Backend sobe com schema inicial e configuracao de ambiente.
+  2. Autenticacao JWT e hash de senha funcionam.
+  3. Testes base passam.
+**Plans**: Executed pre-GSD
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/STACK.md`
 
 ### Phase 2: CRUD Endpoints (Backend)
-
-**Goal**: Implementar todos os CRUDs protegidos por perfil + testes
+**Goal**: Disponibilizar CRUDs de dominio protegidos por perfil.
 **Depends on**: Phase 1
-**Success Criteria** (what must be TRUE):
+**Requirements**: AUTH-04, STOCK-01, STOCK-03, MENU-01, MENU-02
+**Success Criteria**:
+  1. CRUDs de usuarios, itens, conversoes, cardapio e receitas funcionam.
+  2. Rotas sem token e com perfil incorreto retornam 401/403.
+  3. Contratos aparecem no Swagger e possuem testes.
+**Plans**: Executed pre-GSD
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/ARCHITECTURE.md`
 
-  1. 36 testes novos passando (42 no total)
-  2. Todos os CRUDs documentados no Swagger `/docs` (15 rotas)
-
-**Plans**: Executed pre-GSD (detalhes em PLAN.md Fase 2, tarefas 2.1–2.5)
-
-### Phase 3: Lógica de Negócio (Backend)
-
-**Goal**: Planejamento semanal, entregas, refeições auditadas, dashboard e cardápio público
+### Phase 3: Logica de Negocio (Backend)
+**Goal**: Implementar planejamento, entregas, refeicoes, dashboard e cardapio publico.
 **Depends on**: Phase 2
-**Success Criteria** (what must be TRUE):
+**Requirements**: MENU-05..MENU-09, DELIV-01..DELIV-07, MEAL-01..MEAL-06, DASH-01..DASH-02, PUBLIC-01
+**Success Criteria**:
+  1. Entregas atualizam estoque com auditoria e validacao atomica.
+  2. Refeicoes convertem medidas, deduzem estoque e registram auditoria.
+  3. Planejamento por vigencia, dashboard e cardapio publico funcionam.
+  4. Testes backend passam integralmente.
+**Plans**: Executed pre-GSD
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/TESTING.md`
 
-  1. 77 testes totais passando no backend
-  2. Todos os endpoints do spec.md implementados (23 rotas no Swagger)
-
-**Plans**: Executed pre-GSD (detalhes em PLAN.md Fase 3, tarefas 3.1–3.5)
-
-### Phase 4: Fundação Frontend
-
-**Goal**: Infra de autenticação real no frontend — substituir simulação por JWT
+### Phase 4: Fundacao Frontend
+**Goal**: Substituir login simulado por auth JWT real e estabelecer a casca protegida da aplicacao.
 **Depends on**: Phase 3
-**Success Criteria** (what must be TRUE):
+**Requirements**: AUTH-05, AUTH-06, QUAL-02, QUAL-03
+**Success Criteria**:
+  1. Login, logout, persistencia de token e redirecionamento por perfil funcionam.
+  2. Rotas protegidas bloqueiam perfis incorretos.
+  3. Build e lint passam sem warnings.
+**Plans**: Executed pre-GSD
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/CONVENTIONS.md`
 
-  1. `npm run build` + `npm run lint` limpos (zero warnings)
-  2. Login JWT verificado de ponta a ponta (admin/cozinheira, 401/403 corretos)
-  3. Redirecionamento por perfil via `ROTA_POR_PERFIL`
+### Phase 5: Paginas Admin (Frontend)
+**Goal**: Entregar sete paginas administrativas consumindo a API real.
+**Depends on**: Phase 4
+**Requirements**: STOCK-02, STOCK-04..STOCK-06, MENU-01..MENU-04, MENU-07..MENU-08, DELIV-01..DELIV-07, DASH-01..DASH-02, QUAL-02, QUAL-03
+**Success Criteria**:
+  1. Dashboard, usuarios, itens, cardapio, receitas, planejamento e entregas funcionam.
+  2. XML NF-e pode ser revisado e confirmado com auditoria.
+  3. Unidades livres e `Lanche` unificado respeitam os contratos atuais.
+  4. Build, lint e a suite backend atual passam (100 testes no baseline deste contexto).
+**Plans**: 7 plans complete
 
-**Plans**: Executed pre-GSD (detalhes em PLAN.md Fase 4, tarefas 4.1–4.6)
-
-### Phase 5: Páginas Admin (Frontend)
-
-**Goal**: 7 páginas do painel administrativo (Dashboard, Usuários, Itens, Cardápio, Receitas, Planejamento, Entregas)
-**Depends on**: Phase 4 (auth real + api.ts + Layout); consome endpoints das Phases 2–3
-**Success Criteria** (what must be TRUE):
-
-  1. `npm run build` limpo (typecheck + bundle, zero erros)
-  2. `npm run lint` zero warnings/errors
-  3. Admin consegue gerenciar usuários, itens, cardápio, receitas, planejamento e entregas via UI (testes manuais F6–F12 do TESTING.md)
-  4. Entregas suporta entrada manual com justificativa obrigatória ao alterar/excluir + upload de XML NF-e populando a tabela
-
-**Plans**: 7/7 plans executed
+**Manual UAT:** F6-F12 concluído; o upload XML NF-e (F12) foi validado manualmente em 2026-08-03. A validação fiscal formal contra schema SEFAZ permanece fora do escopo.
 
 Plans:
-**Wave 1**
+- [x] 05-01: Fundacao compartilhada, usuarios e dashboard
+- [x] 05-02: Itens, estoque e conversoes
+- [x] 05-03: Cardapio e receitas
+- [x] 05-04: Grade de planejamento
+- [x] 05-05: Entregas manual e XML NF-e
+- [x] 05-06: Portoes de saida e regressao
+- [x] 05-07: Unidade livre e tipo `Lanche` unificado
 
-- [x] 05-01-PLAN.md — Fatia vertical tracer: tipos + constantes + 6 rotas + Usuários CRUD completo + Dashboard real (F6, F7)
+**Canonical refs**: `.planning/phases/05-p-ginas-admin-frontend/05-CONTEXT.md`, `.planning/phases/05-p-ginas-admin-frontend/05-07-SUMMARY.md`, `.planning/codebase/TESTING.md`
 
-**Wave 2** *(blocked on Wave 1 completion)*
+### Phase 6: Cozinha + Gestao (Frontend)
+**Goal**: Modernizar os paineis da cozinheira e da secretaria com planejamento, API autenticada e auditoria reais.
+**Depends on**: Phase 5
+**Requirements**: MEAL-07, MEAL-08, MGMT-01, MGMT-02
+**Success Criteria**:
+  1. Cozinheira seleciona refeicao e carrega planejamento do dia via API.
+  2. Ajustes de ingredientes exigem justificativa e ficam visiveis.
+  3. Confirmacao deduz estoque e registra refeicao com usuario autenticado.
+  4. Secretaria consulta dados reais e navega para planejamento e entregas.
+**Plans**: 2 plans complete
 
-- [x] 05-02-PLAN.md — Itens: CRUD de estoque com badge de baixo estoque + conversões por item (F8)
-- [x] 05-03-PLAN.md — Cardápio + Receitas: CRUD de pratos e editor de ingredientes (F9)
-- [x] 05-04-PLAN.md — Planejamento: grade semanal 7×4 com upsert por vigência (F10)
-- [x] 05-05-PLAN.md — Entregas: entrada manual com justificativa PNAE + parser XML NF-e (F11, F12)
+**Manual UAT:** F13-F15 validado manualmente em 2026-08-04 — 8/8 fluxos passam no navegador (cozinha, gestão, sessão expirada e layouts 320px/768px/desktop); detalhes em `06-UAT.md`.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+Plans:
+- [x] 06-01-PLAN.md — Modernizar o fluxo real da cozinheira com receita, ajustes auditáveis e baixa autenticada
+- [x] 06-02-PLAN.md — Modernizar o painel da secretaria com dados reais, estados e navegação administrativa
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/phases/05-p-ginas-admin-frontend/05-07-SUMMARY.md`, `.planning/phases/06-cozinha-gestao-frontend/06-CONTEXT.md`, `frontend/src/api.ts`, `frontend/src/auth-context.ts`, `backend/requirements.txt`
 
-- [x] 05-06-PLAN.md — Portões de saída: build/lint zero, regressão pytest (77), varredura de anti-padrões (D-12)
-
-**Wave 4** *(pós-fase — melhorias UAT)*
-
-- [x] 05-07-PLAN.md — Unidade livre com conversão interna + tipo "Lanche" único com slots preservados (Tarefa A + Tarefa B + portões de saída)
-
-### Phase 6: Cozinha + Gestão (Frontend)
-
-**Goal**: Evoluir painéis existentes com dados reais e auditoria
-**Depends on**: Phase 3 (planejamento + refeições) e Phase 4 (auth real + api.ts)
-**Success Criteria** (what must be TRUE):
-
-  1. Fluxo cozinheira completo com auditoria (testes manuais F13–F15)
-  2. Estoque deduzido corretamente após confirmação de refeição
-
+### Phase 7: Finalizacao
+**Goal**: Fechar o produto com cardapio publico responsivo, checklist completo e verificacao ponta a ponta.
+**Depends on**: Phase 6
+**Requirements**: PUBLIC-02, QUAL-05, QUAL-06
+**Success Criteria**:
+  1. Cardapio publico funciona sem login e em mobile/tablet.
+  2. Build, lint e todos os testes passam.
+  3. Fluxo conversao → baixa → refeicao → auditoria e verificado.
+  4. Checklist manual F1-F17 passa.
 **Plans**: TBD
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/TESTING.md`
 
-### Phase 7: Finalização
-
-**Goal**: Cardápio público polido, suite completa de testes, verificação ponto a ponta
-**Depends on**: Phase 5 e Phase 6
-**Success Criteria** (what must be TRUE):
-
-  1. `pytest backend/tests/ -v` — todos os testes passando
-  2. `npm run build` + `npm run lint` — zero erros
-  3. Checklist F1–F17 do TESTING.md executado sem falhas
-  4. Conversão medidas caseiras → dedução estoque → registro refeição → auditoria verificada ponto a ponta
-
-**Plans**: TBD
+### Phase 8: Improvements
+**Goal**: Reduzir alertas de estoque inadequados, evitar interrupcao no recebimento de itens novos e diminuir duplicidades causadas por nomes de fornecedores.
+**Depends on**: Phase 7
+**Requirements**: IMP-01, IMP-02, IMP-03, IMP-04, IMP-05
+**Success Criteria**:
+  1. Cada item pode ter limiar próprio, com fallback compatível de 5 e alertas calculados na unidade de exibição.
+  2. Item XML não reconhecido pode ser cadastrado dentro do fluxo de Entregas e vinculado à linha sem perder o rascunho.
+  3. Nomes de fornecedores são normalizados e produzem sugestões explicáveis, sem associação automática silenciosa.
+  4. Os fluxos existentes de entrega, auditoria, conversão e baixa permanecem íntegros.
+**Plans**: TBD — documentada como backlog planejado, sem execução nesta etapa.
+**Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/phases/08-improvements/08-CONTEXT.md`, `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/TESTING.md`
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Fundação Backend | - | Complete | 2026-07-31 |
-| 2. CRUD Endpoints (Backend) | - | Complete | 2026-07-31 |
-| 3. Lógica de Negócio (Backend) | - | Complete | 2026-07-31 |
-| 4. Fundação Frontend | - | Complete | 2026-07-31 |
-| 5. Páginas Admin (Frontend) | 7/7 | In Progress|  |
-| 6. Cozinha + Gestão (Frontend) | 0/? | Not started | - |
-| 7. Finalização | 0/? | Not started | - |
+| 1. Fundacao Backend | pre-GSD | Complete | 2026-07-31 |
+| 2. CRUD Endpoints | pre-GSD | Complete | 2026-07-31 |
+| 3. Logica de Negocio | pre-GSD | Complete | 2026-07-31 |
+| 4. Fundacao Frontend | pre-GSD | Complete | 2026-07-31 |
+| 5. Paginas Admin | 7/7 | Complete | 2026-08-03 |
+| 6. Cozinha + Gestao | 2/2 | Complete | 2026-08-04 |
+| 7. Finalizacao | 0/? | Not started | - |
+| 8. Improvements | 0/? | Backlog | - |
+
+---
+*Last updated: 2026-08-04 after Phase 6 UAT validation (F13-F15 complete)*

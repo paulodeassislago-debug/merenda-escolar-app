@@ -61,7 +61,7 @@ coverage:
         ref: "backend/tests/test_conversoes.py::test_5_5_perfil_errado"
         status: pass
     human_judgment: true
-    rationale: "A rede, seleção visual de slots e ausência de controles de mutação precisam de validação manual com uma sessão de cozinheira."
+    rationale: "A rede, seleção visual de slots e ausência de controles de mutação foram confirmadas manualmente em 2026-08-04 (06-UAT.md, testes 1-3)."
   - id: D2
     description: "Quantidade final é receita-base × alunos, a baixa usa a quantidade enviada e divergências da expectativa escalada são auditadas."
     requirement: MEAL-08
@@ -76,7 +76,7 @@ coverage:
         ref: "cd backend && source venv/bin/activate && pytest tests/ -q"
         status: pass
     human_judgment: true
-    rationale: "A interação de informar alunos, editar a quantidade final e preencher justificativas deve ser confirmada no navegador."
+    rationale: "A interação de informar alunos, editar a quantidade final e preencher justificativas foi confirmada no navegador em 2026-08-04 (06-UAT.md, teste 4)."
   - id: D3
     description: "Editor responsivo apresenta estados de recuperação, inclusão/remoção auditável e diálogo acessível com foco contido."
     verification:
@@ -84,7 +84,7 @@ coverage:
         ref: "cd frontend && npm run build && npm run lint"
         status: pass
     human_judgment: true
-    rationale: "Foco, Esc, descarte, viewport estreito e mensagens anunciadas exigem observação manual."
+    rationale: "Foco, Esc, descarte, viewport estreito e mensagens anunciadas foram observados manualmente em 2026-08-04 (06-UAT.md, testes 5 e 8)."
 
 duration: 123min
 completed: 2026-08-04
@@ -143,7 +143,7 @@ Cada tarefa foi commitada atomicamente; a correção solicitada no checkpoint ta
 - **Decisão:** o usuário definiu que a receita-base é por aluno e que o backend deve validar/persistir a quantidade escalada.
 - **Implementação:** bloqueio da receita até alunos válidos, campos base/esperada/final no frontend, validação escalada e testes de estoque/auditoria no backend.
 - **Arquivos:** `PainelCozinha.tsx`, `main.py`, `schemas.py`, `test_refeicoes.py`.
-- **Verificação:** 100 testes backend, build e lint frontend passaram.
+- **Verificação:** 103 testes backend, build e lint frontend passaram.
 
 **Total de desvios:** 1 ajuste dirigido pelo usuário. **Impacto:** alteração necessária no contrato operacional; sem dependências novas e sem mudança de autorização.
 
@@ -158,8 +158,7 @@ None — no external service configuration required.
 
 ## Next Phase Readiness
 
-- MEAL-07 e MEAL-08 estão implementados e cobertos por build, lint e suíte backend completa.
-- A validação manual deve confirmar F13: escala visual, seleção de conversões, inclusão/remoção, foco do dialog e recuperação em 320px/768px/desktop.
+- MEAL-07 e MEAL-08 estão implementados e cobertos por build, lint, suíte backend completa e UAT manual F13 validado em 2026-08-04 (06-UAT.md).
 - `STATE.md` e `ROADMAP.md` não foram alterados; o orquestrador deve atualizar a posição do plano.
 
 ## Self-Check: PASSED
@@ -168,7 +167,7 @@ None — no external service configuration required.
 - Commits `1e61dde`, `9a50715`, `72ff4a7` e `1531c4c` existem no histórico.
 - `npm run build` passou.
 - `npm run lint` passou sem warnings/erros.
-- `pytest tests/ -q` passou: 100 testes.
+- `pytest tests/ -q` passou: 103 testes.
 - Nenhuma alteração desta execução foi feita em `STATE.md` ou `ROADMAP.md`.
 
 ---

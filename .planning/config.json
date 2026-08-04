@@ -1,5 +1,31 @@
 {
+  "model_profile": "balanced",
+  "mode": "interactive",
+  "granularity": "standard",
+  "commit_docs": true,
+  "response_language": "Portuguese",
+  "parallelization": true,
+  "planning": {
+    "commit_docs": true,
+    "search_gitignored": false
+  },
   "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "nyquist_validation": true,
+    "pattern_mapper": true,
+    "ui_phase": true,
+    "ui_safety_gate": true,
+    "security_enforcement": true,
+    "security_asvs_level": 1,
+    "security_block_on": "high",
+    "post_planning_gaps": true,
+    "auto_advance": false,
+    "use_worktrees": true,
     "_auto_chain_active": false
+  },
+  "git": {
+    "branching_strategy": "none"
   }
 }
