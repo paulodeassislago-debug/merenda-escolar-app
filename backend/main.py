@@ -873,8 +873,6 @@ def _converter_para_unidade_oficial(
     item: models.Item,
     quantidade: float,
     medida: str,
-    peso_informado: float | None = None,
-    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] | None = None,
 ) -> float:
     """Converte `quantidade` na `medida` para a unidade oficial do item (KG/L).
 
@@ -883,21 +881,6 @@ def _converter_para_unidade_oficial(
     medida_normalizada = _normalizar_unidade(medida)
     if medida_normalizada.upper() in ["KG", "L", "LITRO", "LITROS"]:
         return quantidade
-    chave = (item.id, medida_normalizada.casefold())
-    if peso_informado is not None:
-        if peso_informado <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"A conversão de '{medida_normalizada}' para o item '{item.nome}' deve ser maior que zero",
-            )
-        conversao_existente = _buscar_conversao(db, item.id, medida_normalizada)
-        unidade_canonica = conversao_existente.medida_caseira if conversao_existente else medida_normalizada
-        if conversoes_pendentes is not None:
-            conversoes_pendentes[chave] = (unidade_canonica, peso_informado)
-        return quantidade * peso_informado
-
-    if conversoes_pendentes and chave in conversoes_pendentes:
-        return quantidade * conversoes_pendentes[chave][1]
 
     conversao = _buscar_conversao(db, item.id, medida_normalizada)
     if not conversao:
@@ -905,7 +888,7 @@ def _converter_para_unidade_oficial(
             status_code=400,
             detail=(
                 f"Sem conversão cadastrada de '{medida_normalizada}' para o item '{item.nome}'. "
-                "Informe peso_em_kg para cadastrar a conversão no lançamento."
+                "Solicite ao admin o cadastro da conversão antes do lançamento."
             ),
         )
     return quantidade * conversao.peso_em_kg
@@ -941,7 +924,6 @@ def lancar_refeicao_v2(
 
     # 1. Validar tudo antes de gravar/deduzir qualquer coisa
     preparados = []
-    conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] = {}
     for item_req in dados.itens:
         item = db.query(models.Item).filter(models.Item.id == item_req.item_id).first()
         if not item:
@@ -952,8 +934,6 @@ def lancar_refeicao_v2(
             item,
             item_req.quantidade,
             item_req.medida_caseira,
-            item_req.peso_em_kg,
-            conversoes_pendentes,
         )
 
         if item.saldo_atual < qtd_oficial:
@@ -976,10 +956,6 @@ def lancar_refeicao_v2(
                 )
 
         preparados.append((item, item_req, qtd_oficial, receita_item, quantidade_esperada))
-
-    # 2. Persistir conversões novas e deduzir estoque
-    for (item_id, _), (medida, peso) in conversoes_pendentes.items():
-        _upsert_conversao(db, item_id, medida, peso)
 
     refeicao = models.Refeicao(
         tipo_refeicao=dados.tipo_refeicao,
@@ -1173,7 +1149,7 @@ def cardapio_publico(data: date | None = None, db: Session = Depends(get_db)):
 
 
 # =========================================================================
-# ROTAS LEGADAS (compatíveis com o frontend atual; serão substituídas nas Fases 3/6)
+# ROTAS LEGADAS DE ESTOQUE
 # =========================================================================
 
 # ROTA 1: Cadastrar um novo ingrediente no estoque
@@ -1203,57 +1179,3 @@ def listar_estoque(db: Session = Depends(get_db)):
         }
         for item in itens
     ]
-
-# ROTA 4: Lançar Refeição e Abater no Estoque Automaticamente
-@app.post("/refeicoes/lancar")
-def lancar_refeicao(lancamento: schemas.LancamentoRefeicao, db: Session = Depends(get_db)):
-
-    itens_processados = []
-
-    # 1. Analisar cada ingrediente usado pela cozinheira
-    for item_usado in lancamento.ingredientes:
-        qtd_a_descontar = item_usado.quantidade
-
-        # 2. Localizar o item no estoque
-        estoque_item = db.query(models.Item).filter(models.Item.nome == item_usado.nome).first()
-        if not estoque_item:
-            return {"erro": f"O ingrediente '{item_usado.nome}' não foi encontrado no estoque!"}
-
-        # 3. Se a medida não for KG ou L (oficial), fazemos a conversão
-        if item_usado.medida.upper() not in ["KG", "L", "LITRO", "LITROS"]:
-            conversao = db.query(models.Conversao).filter(
-                models.Conversao.item_id == estoque_item.id,
-                models.Conversao.medida_caseira == item_usado.medida
-            ).first()
-
-            if conversao:
-                # Ex: 10 (colheres) * 0.015 (kg) = 0.150 kg
-                qtd_a_descontar = item_usado.quantidade * conversao.peso_em_kg
-            else:
-                return {"erro": f"O sistema não sabe converter '{item_usado.medida}' para o ingrediente '{item_usado.nome}'. Cadastre no dicionário primeiro!"}
-
-        # 4. Abater o valor exato no Estoque Oficial
-        estoque_item.saldo_atual -= qtd_a_descontar
-        itens_processados.append((estoque_item, item_usado))
-
-    # 5. Guardar o registro histórico da refeição (para auditoria)
-    novo_registro = models.Refeicao(
-        id_usuario=lancamento.id_usuario,
-        tipo_refeicao=lancamento.tipo_refeicao or "Lançamento manual",
-        qtd_alunos=lancamento.qtd_alunos_atendidos,
-    )
-    db.add(novo_registro)
-    db.flush()  # garante o id antes de gravar os itens
-
-    for estoque_item, item_usado in itens_processados:
-        db.add(models.RefeicaoItem(
-            refeicao_id=novo_registro.id,
-            item_id=estoque_item.id,
-            quantidade_original=item_usado.quantidade,
-            quantidade_ajustada=item_usado.quantidade,
-            medida_caseira=item_usado.medida,
-        ))
-
-    db.commit()
-
-    return {"mensagem": f"Refeição servida a {lancamento.qtd_alunos_atendidos} alunos! Estoque abatido com sucesso."}

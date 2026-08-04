@@ -1,4 +1,4 @@
-# Fase 3.2 — Entregas (E1–E5 do TESTING.md; somente admin+secretaria)
+# Fase 3.2 — Entregas (E1–E5 de .planning/codebase/TESTING.md; somente admin+secretaria)
 
 
 def _auth(token: str) -> dict:
@@ -157,3 +157,121 @@ def test_e9_filtro_por_data(client, admin_user, admin_token):
     # Data passada → vazia
     lista = client.get("/entregas?data=2020-01-01", headers=_auth(admin_token)).json()
     assert lista == []
+
+
+# E10 — Unidade diferente da oficial usa fator informado e persiste por item
+def test_e10_entrega_unidade_diferente_persiste_conversao_por_item(client, admin_user, admin_token):
+    item = client.post(
+        "/itens",
+        json={
+            "nome": "Banana",
+            "unidade_oficial": "Cartela",
+            "unidade_interna": "KG",
+            "fator_conversao": 2.5,
+            "saldo_atual": 0,
+        },
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 3,
+                "unidade": "Caixa",
+                "fator_conversao": 4.0,
+                "acao": "recebido",
+            }],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 12.0
+
+    conversoes = client.get(
+        f"/conversoes?item_id={item['id']}",
+        headers=_auth(admin_token),
+    ).json()
+    assert conversoes[0]["medida_caseira"] == "Caixa"
+    assert conversoes[0]["peso_em_kg"] == 4.0
+
+    detalhe = client.get(f"/entregas/{resp.json()['id']}", headers=_auth(admin_token)).json()
+    assert detalhe["itens"][0]["unidade"] == "Caixa"
+    assert detalhe["itens"][0]["fator_conversao"] == 4.0
+
+
+# E11 — Conversão já cadastrada pode ser reutilizada sem reenviar o fator
+def test_e11_entrega_reutiliza_conversao_do_item(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=0)
+    _criar_conversao = client.post(
+        "/conversoes",
+        json={"item_id": item["id"], "medida_caseira": "Saca", "peso_em_kg": 30},
+        headers=_auth(admin_token),
+    )
+    assert _criar_conversao.status_code == 200
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 2,
+                "unidade": "saca",
+                "acao": "recebido",
+            }],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 60.0
+
+
+# E12 — Unidade diferente sem conversão nem fator é rejeitada sem alterar estoque
+def test_e12_entrega_sem_conversao_rejeitada(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Feijão", saldo=10)
+    resp = client.post(
+        "/entregas",
+        json={
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 2,
+                "unidade": "Fardo",
+                "acao": "recebido",
+            }],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "fardo" in resp.json()["detail"].lower()
+    assert _saldo(client, admin_token, item["id"]) == 10
+
+
+# E13 — Fator informado atualiza a conversão já associada ao mesmo item
+def test_e13_entrega_atualiza_conversao_do_item(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Batata", saldo=0)
+    client.post(
+        "/conversoes",
+        json={"item_id": item["id"], "medida_caseira": "Caixa", "peso_em_kg": 10},
+        headers=_auth(admin_token),
+    )
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 2,
+                "unidade": "Caixa",
+                "fator_conversao": 12,
+                "acao": "recebido",
+            }],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 24
+    conversao = client.get(
+        f"/conversoes?item_id={item['id']}", headers=_auth(admin_token)
+    ).json()[0]
+    assert conversao["peso_em_kg"] == 12

@@ -117,6 +117,8 @@ class ItemEntrega(Base):
     entrega_id = Column(Integer, ForeignKey("entregas.id"), nullable=False)
     item_id = Column(Integer, ForeignKey("itens.id"), nullable=False)
     quantidade = Column(Float, nullable=False)
+    unidade = Column(String, nullable=True)
+    fator_conversao = Column(Float, nullable=True)
     justificativa = Column(Text)
     acao = Column(String, nullable=False)
 

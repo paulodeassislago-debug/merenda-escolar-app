@@ -1,4 +1,4 @@
-# Fase 3.4 — Dashboard admin (D1–D2 do TESTING.md; somente admin)
+# Fase 3.4 — Dashboard admin (D1–D2 de .planning/codebase/TESTING.md; somente admin)
 
 
 def _auth(token: str) -> dict:

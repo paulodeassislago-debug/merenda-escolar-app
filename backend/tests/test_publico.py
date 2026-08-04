@@ -1,4 +1,4 @@
-# Fase 3.5 — Cardápio público (P1–P2 do TESTING.md; sem autenticação)
+# Fase 3.5 — Cardápio público (P1–P2 de .planning/codebase/TESTING.md; sem autenticação)
 from datetime import date
 
 

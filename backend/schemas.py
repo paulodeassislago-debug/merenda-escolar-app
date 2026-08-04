@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # --- Autenticação ---
@@ -16,21 +16,6 @@ class IngredienteCreate(BaseModel):
     nome_ingrediente: str
     unidade_medida_oficial: str
     saldo_atual: float
-
-
-# --- Refeições (legado) ---
-
-class IngredienteUsado(BaseModel):
-    nome: str
-    quantidade: float
-    medida: str
-
-
-class LancamentoRefeicao(BaseModel):
-    qtd_alunos_atendidos: int
-    id_usuario: int
-    tipo_refeicao: str | None = None
-    ingredientes: list[IngredienteUsado]
 
 
 # --- Usuários (Admin) ---
@@ -169,14 +154,17 @@ class EntregaCreate(BaseModel):
 # --- Refeições (Fase 3 — com auditoria de ajustes) ---
 
 class RefeicaoItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     item_id: int
-    quantidade: float
+    quantidade: float = Field(ge=0)
     medida_caseira: str
-    peso_em_kg: float | None = None
     justificativa: str | None = None
 
 
 class RefeicaoCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     tipo_refeicao: str
     qtd_alunos: int = Field(gt=0)
     planejamento_id: int | None = None

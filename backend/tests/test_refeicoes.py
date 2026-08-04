@@ -331,8 +331,8 @@ def test_refeicoes_tipo_antigo_rejeitado(client, admin_user, admin_token, cozinh
     assert resp.status_code == 400
 
 
-# R11 — Medida nova pode informar a conversão no próprio preparo
-def test_r11_medida_nova_com_peso_cadastra_conversao(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+# R11 — A cozinha não pode cadastrar conversão durante o preparo
+def test_r11_medida_nova_com_peso_rejeitada(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
     item = _criar_item(client, admin_token, "Arroz", saldo=10)
     resp = client.post(
         "/refeicoes",
@@ -348,17 +348,16 @@ def test_r11_medida_nova_com_peso_cadastra_conversao(client, admin_user, admin_t
         },
         headers=_auth(cozinheira_token),
     )
-    assert resp.status_code == 200
-    assert _saldo(client, admin_token, item["id"]) == 9
+    assert resp.status_code == 422
+    assert _saldo(client, admin_token, item["id"]) == 10
 
     conversoes = client.get(
         f"/conversoes?item_id={item['id']}", headers=_auth(admin_token)
     ).json()
-    assert conversoes[0]["medida_caseira"] == "Concha"
-    assert conversoes[0]["peso_em_kg"] == 0.25
+    assert conversoes == []
 
 
-# R12 — Peso inválido não altera o estoque
+# R12 — Campo de conversão livre não é aceito
 def test_r12_medida_com_peso_invalido(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
     item = _criar_item(client, admin_token, "Arroz", saldo=10)
     resp = client.post(
@@ -375,5 +374,52 @@ def test_r12_medida_com_peso_invalido(client, admin_user, admin_token, cozinheir
         },
         headers=_auth(cozinheira_token),
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
+    assert _saldo(client, admin_token, item["id"]) == 10
+
+
+# R13 — Quantidade negativa não pode aumentar o estoque
+def test_r13_quantidade_negativa_rejeitada(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10)
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "tipo_refeicao": "Almoço",
+            "qtd_alunos": 100,
+            "itens": [{"item_id": item["id"], "quantidade": -1, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 422
+    assert _saldo(client, admin_token, item["id"]) == 10
+
+
+# R14 — A rota legada de lançamento não permanece disponível sem autenticação
+def test_r14_rota_legada_de_lancamento_removida(client):
+    resp = client.post(
+        "/refeicoes/lancar",
+        json={
+            "qtd_alunos_atendidos": 1,
+            "id_usuario": 1,
+            "ingredientes": [],
+        },
+    )
+    assert resp.status_code == 404
+
+
+# R15 — Campos de conversão/identidade não podem atravessar o envelope da refeição
+def test_r15_campos_livres_no_envelope_rejeitados(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10)
+    for campo, valor in (("peso_em_kg", 0.25), ("id_usuario", 999)):
+        resp = client.post(
+            "/refeicoes",
+            json={
+                "tipo_refeicao": "Almoço",
+                "qtd_alunos": 1,
+                campo: valor,
+                "itens": [{"item_id": item["id"], "quantidade": 1, "medida_caseira": "kg"}],
+            },
+            headers=_auth(cozinheira_token),
+        )
+        assert resp.status_code == 422
     assert _saldo(client, admin_token, item["id"]) == 10
