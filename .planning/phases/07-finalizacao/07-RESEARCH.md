@@ -300,12 +300,10 @@ OWASP describes ASVS as a basis for testing web-application technical security c
 | A1 | The current development credentials documented in `AGENTS.md` remain usable for manual UAT. [VERIFIED: AGENTS.md:23-24] | Controlled Data Setup | F1–F5 and authenticated setup cannot start; recreate credentials through the project’s supported development procedure. |
 | A2 | The final UAT operator can run a browser against the local Vite/FastAPI servers. [ASSUMED] | Validation Strategy | Manual QUAL-05/PUBLIC-02 evidence cannot be collected; use the documented manual environment or explicitly block the phase. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which existing browser/session data should be retained?** The repository documents mutable SQLite development state and requires a controlled scenario, but does not provide a runtime seeder in the files read. [VERIFIED: AGENTS.md:21-24; backend/main.py:14-15; backend/tests/conftest.py:23-90]
-   - Recommendation: back up the DB, use unique UAT-prefixed records, and document any reset/recreation in `07-UAT.md`; do not delete the DB without a credential recreation plan. [VERIFIED: .planning/phases/07-finalizacao/07-CONTEXT.md:28-33]
-2. **Should public response types be promoted to `frontend/src/types.ts`?** Both local reuse and promotion are explicitly allowed. [VERIFIED: .planning/phases/07-finalizacao/07-CONTEXT.md:35-39]
-   - Recommendation: keep the local shape unless another page consumes it; if promoted, preserve the backend fields while rendering only names. [VERIFIED: frontend/src/pages/CardapioPublico.tsx:9-19; frontend/src/types.ts:57-79]
+1. **RESOLVED — Which existing browser/session data should be retained?** Preserve the mutable development database with a backup, use unique UAT-prefixed records, and document the controlled setup in `07-UAT.md`. Do not perform a destructive reset unless there is an explicit credential-recreation procedure; this is the locked controlled-UAT decision. [VERIFIED: AGENTS.md:21-24; backend/main.py:14-15; backend/tests/conftest.py:23-90; .planning/phases/07-finalizacao/07-CONTEXT.md:28-33]
+2. **RESOLVED — Should public response types be promoted to `frontend/src/types.ts`?** Keep the response shape local unless another page consumes it. If it is promoted, retain all backend fields needed for deserialization while rendering only ingredient names in the public UI. [VERIFIED: .planning/phases/07-finalizacao/07-CONTEXT.md:35-39; frontend/src/pages/CardapioPublico.tsx:9-19; frontend/src/types.ts:57-79]
 
 ## Sources
 
