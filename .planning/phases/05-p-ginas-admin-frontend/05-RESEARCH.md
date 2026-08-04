@@ -11,7 +11,7 @@
 
 **Estilização e identidade visual**
 - **D-01:** CSS plain co-localizado por página (ex.: `Usuarios.css` ao lado de `Usuarios.tsx`), seguindo o padrão de `Login.css`/`CardapioPublico.css`. Tailwind NÃO é usado (dependência inativa).
-- **D-02:** Tokens visuais obrigatórios do `DESIGN.md` (definidos em `src/index.css` `:root`): verde-escuro `#124C0F`, verde-vivo `#48BB2C`, amarelo `#C5D227`. Logo (`src/assets/Logo Nancy (Logotipo) (1).jpg`) é JPG com fundo branco — renderizar apenas em superfícies claras.
+- **D-02:** Tokens visuais obrigatórios do `.planning/PROJECT.md` (definidos em `src/index.css` `:root`): verde-escuro `#124C0F`, verde-vivo `#48BB2C`, amarelo `#C5D227`. Logo (`src/assets/Logo Nancy (Logotipo) (1).jpg`) é JPG com fundo branco — renderizar apenas em superfícies claras.
 
 **Acesso à API e autenticação**
 - **D-03:** Todas as chamadas via `fetchJson<T>`/`fetchWithAuth` de `src/api.ts` (base URL de `VITE_API_URL`, JWT do localStorage anexado automaticamente). Nenhuma URL hardcoded, nenhum `id_usuario` no body — o backend resolve o usuário pelo token.
@@ -22,16 +22,16 @@
 - **D-06:** Sidebar do `Layout.tsx` ganha os links admin condicionados por perfil (`isAdmin`, `isSecretaria` do `useAuth`).
 
 **Padrão de páginas CRUD**
-- **D-07:** Usuários, Itens, Cardápio seguem o padrão tabela + modal CRUD (criar/editar/excluir com feedback visual), conforme testes F7–F9 do `TESTING.md`. Itens destaca visualmente baixo estoque (limiar definido no backend: 5.0 unidade oficial — badge/alerta no frontend).
+- **D-07:** Usuários, Itens, Cardápio seguem o padrão tabela + modal CRUD (criar/editar/excluir com feedback visual), conforme testes F7–F9 do `.planning/codebase/TESTING.md`. Itens destaca visualmente baixo estoque (limiar definido no backend: 5.0 unidade oficial — badge/alerta no frontend).
 - **D-08:** Receitas é editor de ingredientes por prato (`/admin/receitas/:id`): adicionar/remover/editar quantidade de ingrediente, consumindo `GET/POST /cardapio/{id}/receita` e PUT/DELETE de item.
 - **D-09:** Planejamento é uma grade semanal (dias da semana × tipos de refeição) com dropdown de pratos por slot; salvar faz upsert via `POST /planejamento` (vigência por `data_inicio_vigencia`); recarregar deve persistir (F10).
 
 **Entregas (manual + XML)**
 - **D-10:** Entrada manual: tabela editável de itens; alterar ou excluir item EXIGE justificativa (backend retorna 400 sem ela) — modal de justificativa obrigatória antes do submit (F11).
-- **D-11:** Upload de XML NF-e parseado NO FRONTEND com `fast-xml-parser` (decisão do PRD seção 5); o parse popula a tabela editável, que depois segue o mesmo fluxo da manual (F12). Verificar se `fast-xml-parser` está em `frontend/package.json`; se não estiver, adicionar. → **VERIFICADO: já está instalado** (`package.json:13`, v5.10.1).
+- **D-11:** Upload de XML NF-e parseado NO FRONTEND com `fast-xml-parser` (decisão consolidada em `.planning/PROJECT.md` e `.planning/REQUIREMENTS.md`); o parse popula a tabela editável, que depois segue o mesmo fluxo da manual (F12). Verificar se `fast-xml-parser` está em `frontend/package.json`; se não estiver, adicionar. → **VERIFICADO: já está instalado** (`package.json:13`, v5.10.1).
 
 **Qualidade e verificação**
-- **D-12:** Critério de saída: `npm run build` (typecheck + bundle) e `npm run lint` com ZERO erros/warnings. Testes de frontend são manuais — checklist F6–F12 do `TESTING.md` (sem framework E2E; Playwright adiado).
+- **D-12:** Critério de saída: `npm run build` (typecheck + bundle) e `npm run lint` com ZERO erros/warnings. Testes de frontend são manuais — checklist F6–F12 do `.planning/codebase/TESTING.md` (sem framework E2E; Playwright adiado).
 - **D-13:** TypeScript estrito: `verbatimModuleSyntax` (usar `import type { X }` para tipos) e `erasableSyntaxOnly` (sem enums, namespaces, parameter properties).
 
 ### the agent's Discretion
@@ -49,14 +49,14 @@
 
 ## Summary
 
-- **Backend 100% pronto.** As 23 rotas que a fase consome existem e têm 77 testes verdes (Phases 2–3). Phase 5 é puramente frontend: nenhum endpoint novo, nenhuma mudança de backend. [VERIFIED: backend/main.py, backend/tests/]
+- **Backend pronto para os contratos consumidos.** As 23 rotas que a fase consome existem; o baseline inicial era 77 testes e a fase 5.7 encerrou com 94 após as mudanças de unidades e tipos. Phase 5.1–5.6 foi frontend-first; Phase 5.7 também atualizou backend e testes. [VERIFIED: backend/main.py, backend/tests/]
 - **Escopo de arquivos:** 7 páginas novas em `frontend/src/pages/admin/` (cada uma com `.css` co-localizado), 6–7 rotas novas em `App.tsx` (único arquivo de Phase 4 alterado além de `types.ts`), ~10 interfaces novas em `types.ts`. A sidebar **NÃO** precisa de alteração — `NAV_POR_PERFIL` em `Layout.tsx:18-35` já contém todos os links admin e secretaria; basta as rotas existirem. [VERIFIED: frontend/src/components/Layout.tsx:18-35]
 - **Única dependência (fast-xml-parser 5.10.1) já está instalada** (`frontend/package.json:13`) e sua API de parse foi verificada empiricamente nesta sessão. [VERIFIED: frontend/package.json:13 + teste node]
 - **Padrões a replicar:** formulário + `role="alert"` de `Login.tsx`; CSS com tokens `var(--*)` de `CardapioPublico.css`/`Layout.css`; estados loading/erro/vazio de `DashboardGestao.tsx` (repetir o padrão, **NÃO** o fetch hardcoded); estrutura de modal de `PainelCozinha.css` (repetir a estrutura, **NÃO** as cores hardcoded).
 - **Três semânticas de backend dominam o desenho das páginas:** (1) planejamento por vigência com upsert por (slot + `data_inicio_vigencia`); (2) entregas com ação `alterado`/`excluído` exigindo justificativa (400) e validação total antes de gravar; (3) `GET /admin/dashboard` agregado pronto para 4 cards.
 - **Gotcha nº 1:** `dia_semana` do backend é Python (`0=segunda…6=domingo`); `Date.getDay()` do JS é `0=domingo…6=sábado`. Mapear `(jsDay + 6) % 7`. [VERIFIED: backend/main.py:581-582 — "dia_semana deve estar entre 0 (segunda) e 6 (domingo)"]
 - **Gotcha nº 2:** a string de ação é `"excluído"` **com acento** — o backend rejeita qualquer variante (400). Centralizar as três strings numa constante. [VERIFIED: backend/main.py:41]
-- **Saída da fase:** `npm run build` + `npm run lint` com zero warnings (D-12), checklist manual F6–F12, e `pytest backend/tests/ -v` (77 testes) como guarda de regressão.
+- **Saída da fase:** `npm run build` + `npm run lint` com zero warnings (D-12), checklist manual F6–F12, e `pytest backend/tests/ -v` como guarda de regressão; o baseline final esta em 94 testes (`05-07-SUMMARY.md`).
 
 ## Architectural Responsibility Map
 
@@ -64,7 +64,7 @@
 |------------|-------------|----------------|-----------|
 | Renderização de tabelas/modais/grade | Browser (React) | — | D-01/D-07: páginas CRUD client-side |
 | Agregações (dashboard) | API (`GET /admin/dashboard`) | — | Backend já agrega (main.py:916-963); frontend só apresenta |
-| Parse de XML NF-e | Browser (`fast-xml-parser`) | — | D-11: decisão travada do PRD §5 |
+| Parse de XML NF-e | Browser (`fast-xml-parser`) | — | D-11: decisão registrada nos requisitos canônicos |
 | Autorização por perfil | API (`require_perfil` → 401/403) | Browser (`ProtectedRoute`) | Backend é a autoridade; frontend só esconde/redireciona |
 | Regras de estoque/auditoria | API (valida antes de gravar) | Browser (UX de justificativa) | 400 do backend é o guarda final; o modal é conveniência |
 
@@ -103,7 +103,7 @@ LIMIAR_BAIXO_ESTOQUE = 5.0
 }
 ```
 
-Notas: `refeicoes_hoje` sempre tem os 4 tipos (pendente/confirmado); `ultima_data` pode ser `null`. Substituir o placeholder atual (`admin/Dashboard.tsx`, 11 linhas).
+Notas: `refeicoes_hoje` tem os 3 tipos atuais (pendente/confirmado); `ultima_data` pode ser `null`. Substituir o placeholder atual (`admin/Dashboard.tsx`, 11 linhas).
 
 ### 5.2 Usuários (`/admin/usuarios`, admin)
 
@@ -128,8 +128,8 @@ Schemas espelhados: `UsuarioCreate/Update/Response` [VERIFIED: backend/schemas.p
 | `POST /conversoes` | `{ item_id, medida_caseira, peso_em_kg }` | `ConversaoResponse`; 404 item inexistente; 409 duplicada [VERIFIED: main.py:281-314] |
 | `DELETE /conversoes/{id}` | — | `{ mensagem }`; 404 [VERIFIED: main.py:317-329] |
 
-- Baixo estoque: `saldo_atual < 5.0` → saldo em **`--erro` negrito (nunca fundo vermelho cheio)** + badge (DESIGN.md §5.2, D-07).
-- **Recomendação (discricionariedade do agente):** embutir o gerenciador de conversões na própria página de Itens (expandir linha ou modal por item). Sem conversão cadastrada, `POST /refeicoes` falha com 400 (AGENTS.md) — o admin precisa de onde cadastrá-las; PLAN.md 5.1–5.7 não cria página separada.
+- Baixo estoque: `saldo_atual < 5.0` → saldo em **`--erro` negrito (nunca fundo vermelho cheio)** + badge (.planning/PROJECT.md §5.2, D-07).
+- **Recomendação (discricionariedade do agente):** embutir o gerenciador de conversões na própria página de Itens (expandir linha ou modal por item). Sem conversão cadastrada, `POST /refeicoes` falha com 400 (AGENTS.md) — o admin precisa de onde cadastrá-las; os planos `05-01-PLAN.md` a `05-07-PLAN.md` não criam página separada.
 
 ### 5.4 Cardápio (`/admin/cardapio`, admin)
 
@@ -265,14 +265,14 @@ const doc = parser.parse(xmlText);
 | `src/pages/Login.tsx:19-31,79-87` | Form controlled + `erro` state + `role="alert"` + botão desabilitado durante submit ("Entrando…") | Mesmo esqueleto em todos os modais CRUD: estado `erro`/`salvando`, `role="alert"` no erro, botão com texto de progresso |
 | `src/api.ts:36-43` | `fetchJson<T>` desserializa e lança `ApiError` com `detail` do backend | Toda chamada: `try { await fetchJson(...) } catch (e) { if (e instanceof ApiError) setErro(e.message) }` — o `detail` (ex.: 409 nome duplicado) já é amigável |
 | `src/pages/DashboardGestao.tsx:7-30,62-68` | Estados `carregando`/`erro`/vazio antes de renderizar tabela | Repetir a **estrutura** (ternário loading → erro → vazio → conteúdo). **NÃO copiar:** `fetch('http://127.0.0.1:8000/...')` hardcoded (linha 15) — usar `fetchJson` |
-| `src/pages/PainelCozinha.css:152-201` | `.modal-overlay` (fixed, z-50) + `.modal-content` (max-height 90vh, scroll) + `.modal-header` + `.btn-fechar` | Repetir a **estrutura** do modal. **NÃO copiar:** cores hex hardcoded (`#16a34a`, `#2563eb`…) e overlay preto — overlay do DESIGN.md é `rgba(18, 76, 15, 0.35)` |
+| `src/pages/PainelCozinha.css:152-201` | `.modal-overlay` (fixed, z-50) + `.modal-content` (max-height 90vh, scroll) + `.modal-header` + `.btn-fechar` | Repetir a **estrutura** do modal. **NÃO copiar:** cores hex hardcoded (`#16a34a`, `#2563eb`…) e overlay preto — overlay do .planning/PROJECT.md é `rgba(18, 76, 15, 0.35)` |
 | `src/pages/CardapioPublico.css:67-99` | Card branco + `border-top: 3px solid var(--verde-vivo)` + grid responsivo | Base visual dos 4 cards do Dashboard e dos cards de seção |
 | `src/pages/DashboardGestao.tsx:93-100` | `saldo_atual.toFixed(2)` + badge de status por limiar | Formatação de saldo na página de Itens; badge BAIXO ESTOQUE vs ESTÁVEL (re-tokenizado) |
 | `src/pages/Login.css:60-95` | `.form-group` label acima + `.form-input` com focus ring verde-vivo | Copiar classes-base de formulário para os modais CRUD |
 | `src/components/Layout.css:82-88,135-157` | Link ativo (borda lateral verde-vivo), badges de perfil | Referência de como os tokens viram componentes; badges de ação de entrega seguem o mesmo molde |
 | `src/auth-context.ts:32-38` | `useAuth()` → `isAdmin`, `isSecretaria`, `usuario` | Guards de UI (ex.: esconder ações admin se secretaria estiver em planejamento/entregas — ambos têm permissão total nelas, então raramente necessário) |
 
-**Anti-padrões a NÃO replicar (legado pré-DESIGN.md, Phase 6 cuida deles):** URLs `http://127.0.0.1:8000` hardcoded, `id_usuario: 1` no body, `alert()` como feedback, `cardapiosPadrao` hardcoded, cores fora da paleta (`#2563eb`, `#1e40af`), inline styles.
+**Anti-padrões a NÃO replicar (legado pré-.planning/PROJECT.md, Phase 6 cuida deles):** URLs `http://127.0.0.1:8000` hardcoded, `id_usuario: 1` no body, `alert()` como feedback, `cardapiosPadrao` hardcoded, cores fora da paleta (`#2563eb`, `#1e40af`), inline styles.
 
 ## Layout/Sidebar Integration
 
@@ -310,7 +310,7 @@ const NAV_POR_PERFIL: Record<Perfil, NavItem[]> = {
 } />
 ```
 
-- Perfis por rota (D-05 + PLAN.md §5): `/admin`, `/admin/usuarios`, `/admin/itens`, `/admin/cardapio`, `/admin/receitas/:id` → `['admin']`; `/admin/planejamento`, `/admin/entregas` → `['admin', 'secretaria']`.
+- Perfis por rota (D-05 + `.planning/ROADMAP.md`): `/admin`, `/admin/usuarios`, `/admin/itens`, `/admin/cardapio`, `/admin/receitas/:id` → `['admin']`; `/admin/planejamento`, `/admin/entregas` → `['admin', 'secretaria']`.
 - Secretaria cai em `/gestao` após login (`ROTA_POR_PERFIL`, auth-context.ts:26-30) e alcança planejamento/entregas pela sidebar.
 - `ProtectedRoute` redireciona perfil errado para a home do próprio perfil (`ProtectedRoute.tsx:22-25`) — secretaria que digitar `/admin/itens` volta para `/gestao` sem erro.
 
@@ -328,21 +328,21 @@ Tokens disponíveis em `:root` [VERIFIED: frontend/src/index.css:8-38, verbatim 
 --fonte-serif: Georgia, 'Times New Roman', serif   --fonte-sans: system-ui, ...
 ```
 
-Regras do DESIGN.md aplicáveis a estas 7 páginas [CITED: DESIGN.md §3, §5, §6]:
+Regras do .planning/PROJECT.md aplicáveis a estas 7 páginas [CITED: .planning/PROJECT.md §3, §5, §6]:
 
 - **Tipografia:** serif é proibida em telas operacionais — só Login/Cardápio Público. Admin usa `--fonte-sans` (títulos 600/18–22px).
 - **Botões:** primário = fundo `--verde-escuro` (hover `--verde-escuro-hover`), texto branco; perigo = fundo branco, borda+texto `--erro`, hover `--erro-fundo`; foco visível `outline: 2px solid var(--verde-vivo)`.
 - **Tabelas:** header com fundo `--verde-tint` e texto `--verde-escuro` 600; linhas com borda inferior `--borda`; hover `--verde-tint` a 50%.
-- **Baixo estoque:** texto do saldo em `--erro` **negrito** — nunca fundo vermelho cheio (DESIGN.md §5.2).
+- **Baixo estoque:** texto do saldo em `--erro` **negrito** — nunca fundo vermelho cheio (.planning/PROJECT.md §5.2).
 - **Badges de status (mapeamento direto para Entregas):** `recebido` → fundo `--verde-vivo`, texto branco (badge grande); `alterado` → fundo `--amarelo`, texto `--texto` (contraste obrigatório); `excluído` → fundo `--erro-fundo`, texto `--erro`.
 - **Modal:** overlay `rgba(18, 76, 15, 0.35)` (verde translúcido, não preto), card branco raio 12px.
-- **Campo de justificativa:** obrigatório destacado com **borda `--amarelo` até ser preenchido** (DESIGN.md §5.4) — perfeito para o modal de justificativa das Entregas.
+- **Campo de justificativa:** obrigatório destacado com **borda `--amarelo` até ser preenchido** (.planning/PROJECT.md §5.4) — perfeito para o modal de justificativa das Entregas.
 - **Contraste:** branco sobre `--verde-vivo` proibido em texto pequeno; amarelo sempre com texto escuro; fundo geral `--fundo`, conteúdo em cards brancos.
 - **Logo:** só aparece via `Layout` (sidebar) — as páginas admin não precisam importá-lo.
 
 ## Manual Test Map (F6–F12)
 
-| # | Teste (TESTING.md) | Página | Dicas de aceite para o plano |
+| # | Teste (.planning/codebase/TESTING.md) | Página | Dicas de aceite para o plano |
 |---|---|---|---|
 | F6 | Dashboard admin → 4 cards/seções exibem dados reais | Dashboard | Verificar as 4 seções de `GET /admin/dashboard`; com banco fresco, valores zerados são válidos (seções presentes); após criar entrega/refeição, números sobem |
 | F7 | CRUD de usuários → criar, editar, excluir com feedback visual | Usuários | Criar `teste/teste123` secretaria → aparece na tabela; editar perfil; excluir; tentar nome duplicado → 409 visível; login com o usuário criado funciona |
@@ -362,7 +362,7 @@ Setup dos testes manuais: backend de `backend/` (`source venv/bin/activate && uv
 4. **`verbatimModuleSyntax` + `erasableSyntaxOnly` (D-13)** — `import type { Item }` para tipos; sem enums TS nem parameter properties. `tsc -b` roda no `npm run build`, então erro de tipo bloqueia o critério de saída.
 5. **Parse XML: `det` objeto vs array; raiz `nfeProc` vs `NFe`; `uCom` ≠ unidade oficial.** Normalizações obrigatórias; a tabela editável é revisão humana, não importação cega. XML malformado → `parser.parse` lança → capturar e mostrar erro amigável ("arquivo não é um XML de NF-e válido").
 6. **`POST /planejamento` não valida coerência prato×tipo** — o dropdown da grade DEVE filtrar pratos por `tipo_refeicao` da coluna, senão grava incoerência (ex.: prato de Janta no slot de Almoço).
-7. **`GET /planejamento` retorna só slots vigentes/preenchidos** — a grade se constrói por junção local (7 dias × 4 tipos) com o resultado; célula ausente ≠ erro, é "A definir". Vigências futuras ficam invisíveis para a data consultada (comportamento correto — não "bug do GET").
+7. **`GET /planejamento` retorna só slots vigentes/preenchidos** — a grade se constrói por junção local (7 dias × 4 slots) com o resultado; célula ausente ≠ erro, é "A definir". Vigências futuras ficam invisíveis para a data consultada (comportamento correto — não "bug do GET").
 8. **401 em meio à sessão (token expirado)** — `fetchJson` lança `ApiError(401)`. Não há refresh nem interceptor global; tratar por página com mensagem "sessão expirada — entre novamente" (o próximo acesso a rota protegida redireciona via `ProtectedRoute`). Não construir mecanismo global novo nesta fase.
 9. **Não tocar nas páginas legadas** (`PainelCozinha`, `DashboardGestao`) — URLs hardcoded e `id_usuario: 1` são débito conhecido da Phase 6 (CONTEXT.md deferred). Alterá-las agora infla o escopo.
 10. **Rodar comandos do diretório certo** — `DATABASE_URL` é relativa: backend/uvicorn/pytest sempre de `backend/`, senão cria `merenda.db` vazio na raiz (AGENTS.md).
@@ -378,7 +378,7 @@ Setup dos testes manuais: backend de `backend/` (`source venv/bin/activate && uv
 | Property | Value |
 |----------|-------|
 | Framework (frontend) | nenhum (testes manuais — D-12; Playwright adiado) |
-| Framework (backend, regressão) | pytest + httpx TestClient — 77 testes, SQLite in-memory StaticPool |
+| Framework (backend, regressão) | pytest + httpx TestClient — 100 testes no baseline atual, SQLite in-memory StaticPool |
 | Config file | `frontend/eslint.config.js` (flat config: js + tseslint + react-hooks + react-refresh) |
 | Quick run command | `npm run build && npm run lint` (rodar de `frontend/`) |
 | Full suite command | `pytest backend/tests/ -v` (rodar de `backend/` com venv ativo) |
@@ -392,7 +392,7 @@ Setup dos testes manuais: backend de `backend/` (`source venv/bin/activate && uv
 | F10 | Planejamento persiste após reload | manual | — | n/a |
 | F11 | Entrega manual com justificativa obrigatória | manual | — | n/a |
 | F12 | Entrega via XML parse → editar → confirmar | manual | — | n/a |
-| Regressão API | 23 rotas continuam íntegras | automatizado | `cd backend && source venv/bin/activate && pytest tests/ -v` | ✅ (77 testes) |
+| Regressão API | 23 rotas continuam íntegras | automatizado | `cd backend && source venv/bin/activate && pytest tests/ -v` | ✅ (100 testes atuais; 94 no fechamento de 05-07) |
 | Typecheck | TS estrito compila | automatizado | `npm run build` (`tsc -b && vite build`) | ✅ |
 | Lint | zero warnings | automatizado | `npm run lint` | ✅ |
 
@@ -402,7 +402,7 @@ Setup dos testes manuais: backend de `backend/` (`source venv/bin/activate && uv
 - **Phase gate:** tudo verde + checklist manual F6–F12 executado sem falhas → `/gsd-verify-work`
 
 ### Wave 0 Gaps
-- Nenhum gap automatizado — a fase não adiciona framework de testes (D-12). O checklist manual F6–F12 já existe em `TESTING.md`.
+- Nenhum gap automatizado — a fase não adiciona framework de testes (D-12). O checklist manual F6–F12 já existe em `.planning/codebase/TESTING.md`.
 - Útil preparar: **XML de NF-e de exemplo** (sintético, 2–3 itens) em um arquivo de apoio para executar F12 sem nota fiscal real.
 
 ## Package Legitimacy Audit
@@ -413,7 +413,7 @@ Nenhum pacote novo é instalado nesta fase. A única dependência relevante já 
 |---------|----------|-----|-----------|-------------|---------|-------------|
 | fast-xml-parser | npm | 9.5 anos (criado 2017-01-28) | ~83M/semana | github.com/NaturalIntelligence/fast-xml-parser | OK | Approved (já instalado: 5.10.1) |
 
-**Nota sobre o veredito do seam:** `package-legitimacy check` retornou `SUS` com razão `too-new` — falso positivo: o sinal `publishedAt` reflete a data da **última release** (2026-07-16), não a idade do pacote (2017, 83M downloads/semana, repo oficial, sem postinstall). Adicionalmente, o pacote é decisão travada do projeto (D-11 / PRD §5) e **já está instalado** — nenhuma instalação nova ocorre na fase, portanto nenhum `checkpoint:human-verify` é necessário.
+**Nota sobre o veredito do seam:** `package-legitimacy check` retornou `SUS` com razão `too-new` — falso positivo: o sinal `publishedAt` reflete a data da **última release** (2026-07-16), não a idade do pacote (2017, 83M downloads/semana, repo oficial, sem postinstall). Adicionalmente, o pacote é decisão travada do projeto (D-11 / requisitos canônicos) e **já está instalado** — nenhuma instalação nova ocorre na fase, portanto nenhum `checkpoint:human-verify` é necessário.
 
 **Packages removed (SLOP):** nenhum.
 **Packages flagged (SUS):** nenhum efetivo (ver nota acima).
@@ -425,7 +425,7 @@ Nenhum pacote novo é instalado nesta fase. A única dependência relevante já 
 - `backend/schemas.py:38-158` — shapes Pydantic exatos (Usuario, Item, Conversao, CardapioItem, Receita, Planejamento, Entrega)
 - `backend/tests/test_planejamento.py`, `test_entregas.py` — comportamento esperado (upsert, vigência, E1–E9)
 - `frontend/src/api.ts`, `auth-context.ts`, `App.tsx`, `components/Layout.tsx` + `.css`, `components/ProtectedRoute.tsx`, `pages/Login.tsx` + `.css`, `pages/CardapioPublico.tsx` + `.css`, `pages/DashboardGestao.tsx` + `.css`, `pages/PainelCozinha.tsx` + `.css`, `pages/admin/Dashboard.tsx`, `types.ts`, `index.css`, `package.json`, `eslint.config.js`, `.env`
-- `.planning/PLAN.md` §4–§5, `.planning/STATE.md`, `05-CONTEXT.md`, `spec.md`, `DESIGN.md`, `TESTING.md`, `AGENTS.md`
+- `.planning/ROADMAP.md` §4–§5, `.planning/STATE.md`, `05-CONTEXT.md`, `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/codebase/TESTING.md`, `AGENTS.md`
 - Execução empírica: `node` + `fast-xml-parser@5.10.1` instalado — parse de XML NF-e sintético confirmou o shape `{cProd, xProd, qCom, uCom, vUnCom}`
 
 ### Secondary (MEDIUM confidence)

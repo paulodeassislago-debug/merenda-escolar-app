@@ -206,6 +206,12 @@
   text-align: left;
 }
 
+.gestao-estado-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .gestao-estado-erro p {
   margin: 0;
   color: var(--erro);
@@ -249,6 +255,76 @@
   word-break: break-word;
 }
 
+.gestao-texto-suave {
+  color: var(--texto-suave);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gestao-lista-detalhes {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.gestao-lista-detalhes li {
+  overflow-wrap: anywhere;
+}
+
+.gestao-lista-detalhes li span {
+  display: block;
+}
+
+.gestao-lista-detalhes .gestao-item-ajustado {
+  color: var(--erro);
+}
+
+.gestao-slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.gestao-slot {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  min-height: 124px;
+  padding: 16px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--fundo);
+}
+
+.gestao-slot-pendente {
+  background: var(--branco);
+}
+
+.gestao-slot-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gestao-slot h3 {
+  margin: 0;
+  color: var(--verde-escuro);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.gestao-slot p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--texto);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
 .gestao-status-badge {
   display: inline-flex;
   padding: 4px 8px;
@@ -279,13 +355,19 @@
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 3px solid var(--verde-vivo);
   outline-offset: 2px;
 }
 
 @media (max-width: 1023px) {
   .gestao-metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gestao-slots {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -315,5 +397,17 @@ input:focus-visible {
 
   .gestao-metricas {
     grid-template-columns: 1fr;
+  }
+
+  .gestao-slots {
+    grid-template-columns: 1fr;
+  }
+
+  .gestao-estado-acoes {
+    width: 100%;
+  }
+
+  .gestao-estado-acoes .gestao-botao {
+    width: 100%;
   }
 }

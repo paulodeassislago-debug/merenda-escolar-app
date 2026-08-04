@@ -1,4 +1,4 @@
-/* src/pages/Login.css — visual cerimonial (DESIGN.md) */
+/* src/pages/Login.css — visual cerimonial (.planning/PROJECT.md) */
 
 .login-container {
   min-height: 100vh;
@@ -34,7 +34,7 @@
   margin-bottom: 1rem;
 }
 
-/* Títulos institucionais em serif (DESIGN.md §3) */
+/* Títulos institucionais em serif (.planning/PROJECT.md) */
 .login-header h1 {
   font-family: var(--fonte-serif);
   font-size: 1.5rem;

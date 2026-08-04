@@ -7,17 +7,21 @@ import { useEffect, useState } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type {
   AcaoEntrega,
+  Conversao,
   EntregaResumo,
   EntregaDetalhe,
   EntregaItemRequest,
   Item,
 } from '../../types';
+import { UNIDADES_SUGERIDAS } from './constants';
 import { parseNfe } from './nfe';
 import './Entregas.css';
 
 interface LinhaEdicao {
   itemId: number | null;
   quantidade: number;
+  unidade: string;
+  fatorConversao: string;
   acao: AcaoEntrega;
   justificativa: string | null;
   descricaoNf?: string;
@@ -29,6 +33,7 @@ export default function Entregas() {
   // Listagem
   const [entregas, setEntregas] = useState<EntregaResumo[]>([]);
   const [itens, setItens] = useState<Item[]>([]);
+  const [conversoesPorItem, setConversoesPorItem] = useState<Record<number, Conversao[]>>({});
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -138,13 +143,85 @@ export default function Entregas() {
   const adicionarLinha = () => {
     setLinhas((prev) => [
       ...prev,
-      { itemId: null, quantidade: 0, acao: 'recebido', justificativa: null },
+      {
+        itemId: null,
+        quantidade: 0,
+        unidade: '',
+        fatorConversao: '',
+        acao: 'recebido',
+        justificativa: null,
+      },
     ]);
   };
 
-  const atualizarItemLinha = (index: number, itemId: number) => {
+  const carregarConversoesItem = async (itemId: number): Promise<Conversao[]> => {
+    const armazenadas = conversoesPorItem[itemId];
+    if (armazenadas) return armazenadas;
+
+    try {
+      const conversoes = await fetchJson<Conversao[]>(`/conversoes?item_id=${itemId}`);
+      setConversoesPorItem((prev) => ({ ...prev, [itemId]: conversoes }));
+      return conversoes;
+    } catch {
+      return [];
+    }
+  };
+
+  const itemTemUnidadeOficial = (item: Item, unidade: string) =>
+    unidade.trim().toLocaleUpperCase() === item.unidade_oficial.trim().toLocaleUpperCase();
+
+  const fatorParaUnidade = (item: Item, unidade: string, conversoes: Conversao[]) => {
+    if (itemTemUnidadeOficial(item, unidade)) return item.fator_conversao.toString();
+    return conversoes.find(
+      (conversao) =>
+        conversao.medida_caseira.trim().toLocaleUpperCase() === unidade.trim().toLocaleUpperCase(),
+    )?.peso_em_kg.toString() ?? '';
+  };
+
+  const atualizarItemLinha = async (index: number, itemId: number) => {
+    const item = itens.find((entrada) => entrada.id === itemId);
+    if (!item) return;
+
+    const linhaAtual = linhas[index];
+    const unidade = linhaAtual?.unidadeNf?.trim() || item.unidade_oficial;
+    const conversoes = await carregarConversoesItem(itemId);
     setLinhas((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, itemId } : l)),
+      prev.map((l, i) =>
+        i === index
+          ? {
+              ...l,
+              itemId,
+              unidade,
+              fatorConversao: fatorParaUnidade(item, unidade, conversoes),
+            }
+          : l,
+      ),
+    );
+  };
+
+  const atualizarUnidade = (index: number, unidade: string) => {
+    const linha = linhas[index];
+    if (!linha || linha.itemId === null) return;
+    const item = itens.find((entrada) => entrada.id === linha.itemId);
+    if (!item) return;
+
+    const conversoes = conversoesPorItem[item.id] ?? [];
+    setLinhas((prev) =>
+      prev.map((l, i) =>
+        i === index
+          ? {
+              ...l,
+              unidade,
+              fatorConversao: fatorParaUnidade(item, unidade, conversoes),
+            }
+          : l,
+      ),
+    );
+  };
+
+  const atualizarFatorConversao = (index: number, fatorConversao: string) => {
+    setLinhas((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, fatorConversao } : l)),
     );
   };
 
@@ -251,14 +328,31 @@ export default function Entregas() {
     const texto = await arquivo.text();
     try {
       const resultado = parseNfe(texto, itens);
-      const novasLinhas: LinhaEdicao[] = resultado.linhas.map((l) => ({
-        itemId: l.itemId,
-        quantidade: l.quantidade,
-        acao: 'recebido' as AcaoEntrega,
-        justificativa: null,
-        descricaoNf: l.descricao,
-        unidadeNf: l.unidadeNf,
-      }));
+      const itemIds = resultado.linhas
+        .map((linha) => linha.itemId)
+        .filter((itemId): itemId is number => itemId !== null);
+      const conversoes = await Promise.all(
+        [...new Set(itemIds)].map(async (itemId) => [itemId, await carregarConversoesItem(itemId)] as const),
+      );
+      const conversoesMap = new Map(conversoes);
+      const novasLinhas: LinhaEdicao[] = resultado.linhas.map((l) => {
+        const item = l.itemId === null
+          ? null
+          : itens.find((entrada) => entrada.id === l.itemId) ?? null;
+        const unidade = l.unidadeNf || item?.unidade_oficial || '';
+        return {
+          itemId: l.itemId,
+          quantidade: l.quantidade,
+          unidade,
+          fatorConversao: item
+            ? fatorParaUnidade(item, unidade, conversoesMap.get(item.id) ?? [])
+            : '',
+          acao: 'recebido' as AcaoEntrega,
+          justificativa: null,
+          descricaoNf: l.descricao,
+          unidadeNf: l.unidadeNf,
+        };
+      });
       setLinhas(novasLinhas);
       setNumeroNota(resultado.numeroNota);
       setEmitente(resultado.emitente);
@@ -286,11 +380,19 @@ export default function Entregas() {
 
     // Guarda de UI: bloquear itens sem seleção ou quantidade inválida
     const invalidas = ativas.filter(
-      (l) => l.itemId === null || l.quantidade <= 0,
+      (l) => {
+        if (l.itemId === null || l.quantidade <= 0) return true;
+        const item = itens.find((entrada) => entrada.id === l.itemId);
+        return Boolean(
+          item &&
+          !itemTemUnidadeOficial(item, l.unidade) &&
+          (!l.fatorConversao || Number(l.fatorConversao) <= 0),
+        );
+      },
     );
     if (invalidas.length > 0) {
       setErroSubmit(
-        'Verifique as linhas: todos os itens precisam estar selecionados e com quantidade maior que zero.',
+        'Verifique as linhas: selecione os itens, informe quantidades válidas e preencha a conversão das unidades diferentes da padrão.',
       );
       return;
     }
@@ -315,6 +417,8 @@ export default function Entregas() {
         item_id: l.itemId!,
         quantidade: l.quantidade,
         acao: l.acao,
+        unidade: l.unidade.trim() || undefined,
+        fator_conversao: l.fatorConversao ? Number(l.fatorConversao) : undefined,
         justificativa: l.justificativa?.trim() || null,
       })),
     };
@@ -353,7 +457,17 @@ export default function Entregas() {
   const podeSubmeter = (): boolean => {
     const ativas = linhas.filter((l) => !l.removida);
     if (ativas.length === 0) return false;
-    if (ativas.some((l) => l.itemId === null || l.quantidade <= 0)) return false;
+    if (
+      ativas.some((l) => {
+        if (l.itemId === null || l.quantidade <= 0) return true;
+        const item = itens.find((entrada) => entrada.id === l.itemId);
+        return Boolean(
+          item &&
+          !itemTemUnidadeOficial(item, l.unidade) &&
+          (!l.fatorConversao || Number(l.fatorConversao) <= 0),
+        );
+      })
+    ) return false;
     return true;
   };
 
@@ -561,6 +675,12 @@ export default function Entregas() {
                 {linhas.map((linha, index) => {
                   const naoReconhecido =
                     linha.descricaoNf && linha.itemId === null;
+                  const itemDaLinha = linha.itemId === null
+                    ? null
+                    : itens.find((item) => item.id === linha.itemId) ?? null;
+                  const unidadeDiferente = Boolean(
+                    itemDaLinha && !itemTemUnidadeOficial(itemDaLinha, linha.unidade),
+                  );
                   const classeLinha = [
                     linha.removida ? 'linha-removida' : '',
                     naoReconhecido ? 'linha-nao-reconhecida' : '',
@@ -611,6 +731,48 @@ export default function Entregas() {
                             NF: {linha.descricaoNf}
                             {linha.unidadeNf ? ` (${linha.unidadeNf})` : ''}
                           </span>
+                        )}
+                        {itemDaLinha && (
+                          <div className="entrega-unidade-controles">
+                            <label htmlFor={`entrega-unidade-${index}`}>Unidade da entrega</label>
+                            <input
+                              id={`entrega-unidade-${index}`}
+                              type="text"
+                              list={`entrega-unidades-${index}`}
+                              className="form-input"
+                              value={linha.unidade}
+                              onChange={(e) => atualizarUnidade(index, e.target.value)}
+                              disabled={linha.removida}
+                            />
+                            <datalist id={`entrega-unidades-${index}`}>
+                              <option value={itemDaLinha.unidade_oficial} />
+                              {UNIDADES_SUGERIDAS.map((unidade) => (
+                                <option key={unidade} value={unidade} />
+                              ))}
+                              {(conversoesPorItem[itemDaLinha.id] ?? []).map((conversao) => (
+                                <option key={conversao.id} value={conversao.medida_caseira} />
+                              ))}
+                            </datalist>
+                          </div>
+                        )}
+                        {itemDaLinha && unidadeDiferente && (
+                          <div className="entrega-conversao-inline">
+                            <label htmlFor={`entrega-fator-${index}`}>
+                              1 {linha.unidade || 'unidade'} equivale a
+                            </label>
+                            <input
+                              id={`entrega-fator-${index}`}
+                              type="number"
+                              min="0.001"
+                              step="0.001"
+                              className="form-input"
+                              value={linha.fatorConversao}
+                              onChange={(e) => atualizarFatorConversao(index, e.target.value)}
+                              disabled={linha.removida}
+                              required
+                            />
+                            <span>{itemDaLinha.unidade_interna}</span>
+                          </div>
                         )}
                       </td>
                       <td>
@@ -770,20 +932,35 @@ export default function Entregas() {
               </p>
 
               <ul className="detalhe-lista">
-                {detalhe.itens.map((item) => (
-                  <li key={item.id} className="detalhe-item">
-                    <span className="detalhe-item-nome">{item.item_nome}</span>
-                    <span className="detalhe-item-qtd">
-                      Qtd: {item.quantidade}
-                    </span>
-                    {badgeAcao(item.acao)}
-                    {item.justificativa && (
-                      <div className="detalhe-justificativa">
-                        {item.justificativa}
-                      </div>
-                    )}
-                  </li>
-                ))}
+                {detalhe.itens.map((item) => {
+                  const itemCatalogo = itens.find((entrada) => entrada.id === item.item_id);
+                  const unidade = item.unidade ?? itemCatalogo?.unidade_oficial ?? '';
+                  const fator = item.fator_conversao ?? itemCatalogo?.fator_conversao;
+                  const quantidadeInterna = fator === undefined
+                    ? null
+                    : item.quantidade * fator;
+
+                  return (
+                    <li key={item.id} className="detalhe-item">
+                      <span className="detalhe-item-nome">{item.item_nome}</span>
+                      <span className="detalhe-item-qtd">
+                        Qtd: {item.quantidade} {unidade}
+                        {quantidadeInterna !== null && itemCatalogo && (
+                          <span className="detalhe-item-conversao">
+                            {' '}(= {quantidadeInterna.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}{' '}
+                            {itemCatalogo.unidade_interna})
+                          </span>
+                        )}
+                      </span>
+                      {badgeAcao(item.acao)}
+                      {item.justificativa && (
+                        <div className="detalhe-justificativa">
+                          {item.justificativa}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 

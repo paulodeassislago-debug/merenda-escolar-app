@@ -42,7 +42,7 @@ key-decisions:
 
 patterns-established:
   - "Pattern 1: .status-alerta/.status-ok — pill badges (4px 8px padding, 999px radius, 13px 600 uppercase, 0.04em letter-spacing)"
-  - "Pattern 2: .saldo-baixo — color: var(--erro); font-weight: 700; (nunca fundo vermelho cheio — D-07/DESIGN.md §5.2)"
+  - "Pattern 2: .saldo-baixo — color: var(--erro); font-weight: 700; (nunca fundo vermelho cheio — D-07/.planning/PROJECT.md §5.2)"
   - "Pattern 3: .modal-conversoes — max-width 600px, nested inside page modal system"
   - "Pattern 4: .conversoes-form — flex inline form with align-items: flex-end inside modal body"
 
@@ -110,7 +110,7 @@ status: complete
 ## Accomplishments
 
 - CRUD completo de itens via `/itens` (GET/POST/PUT/DELETE) seguindo o template Usuarios — tabela com 5 colunas (Nome, Unidade KG/L, Saldo, Status, Ações), modal criar/editar e exclusão destrutiva
-- Destaque de baixo estoque que "grita": saldo < `LIMIAR_BAIXO_ESTOQUE` (5.0) exibe texto em `--erro` bold 700 + badge "Baixo estoque" (`--erro-fundo`/`--erro`); demais linhas exibem badge "OK" (`--verde-tint`/`--verde-escuro`) — nunca fundo vermelho cheio (D-07/DESIGN.md §5.2)
+- Destaque de baixo estoque que "grita": saldo < `LIMIAR_BAIXO_ESTOQUE` (5.0) exibe texto em `--erro` bold 700 + badge "Baixo estoque" (`--erro-fundo`/`--erro`); demais linhas exibem badge "OK" (`--verde-tint`/`--verde-escuro`) — nunca fundo vermelho cheio (D-07/.planning/PROJECT.md §5.2)
 - Saldo formatado com `toFixed(2)`; unidade oficial restrita a select KG/L (espelha `UNIDADES_VALIDAS` do backend)
 - Gerenciador de conversões embutido como modal por item — lista conversões existentes, formulário inline de adição (medida caseira + peso em kg), exclusão com confirmação destrutiva
 - Peso em kg formatado com `toFixed(3)` na tabela (step 0.001 no input); erros do backend (404 item, 409 duplicada) exibidos em `role="alert"` dentro do modal

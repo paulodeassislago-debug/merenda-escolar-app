@@ -131,7 +131,7 @@ status: complete
 - Constantes compartilhadas em `constants.ts` (`.ts` puro, sem JSX — regra react-refresh): TIPOS_REFEICAO (4), DIAS_SEMANA (7), LIMIAR_BAIXO_ESTOQUE (5.0), PERFIL_ROTULOS (Record<Perfil, string>)
 - 6 novas rotas em `App.tsx`: `/admin/usuarios`, `/admin/itens`, `/admin/cardapio`, `/admin/receitas/:id` (admin), `/admin/planejamento`, `/admin/entregas` (admin + secretaria) — todas dentro de `<ProtectedRoute><Layout>`
 - Página Usuários CRUD completa (F7): tabela com badges de perfil, modal criar/editar (senha vazia omitida do PUT, 409 duplicado exibido em `role="alert"`), modal destrutivo de exclusão, ternário carregando → erro → conteúdo — serve como template para os planos 02-03
-- Dashboard admin real (F6): 4 cards de métricas com `border-top: 3px solid var(--verde-vivo)`, seção Refeições de hoje (4 tipos sempre, badges Confirmado/Pendente, null como "Prato não definido"), seção Itens críticos (lista com `toFixed(2)`, vazio como "Nenhum item em baixo estoque."), seção Entregas (últimos 7/30 dias, null como "Nenhuma entrega registrada ainda.")
+- Dashboard admin real (F6): 4 cards de métricas com `border-top: 3px solid var(--verde-vivo)`, seção Refeições de hoje (3 tipos atuais, badges Confirmado/Pendente, null como "Prato não definido"), seção Itens críticos (lista com `toFixed(2)`, vazio como "Nenhum item em baixo estoque."), seção Entregas (últimos 7/30 dias, null como "Nenhuma entrega registrada ainda.")
 - Scaffolding das 5 páginas da Wave 2 com componentes default válidos — substituídos pelos planos 02-05
 
 ## Task Commits
@@ -162,7 +162,7 @@ Each task was committed atomically:
 - `LIMIAR_BAIXO_ESTOQUE = 5.0` em `constants.ts` — espelha `backend/main.py:43`, único ponto de verdade para F8.
 - Senha vazia no modal de edição → campo omitido do payload PUT — backend mantém a senha atual.
 - `DIAS_SEMANA` indexado pelo valor do backend (0=Segunda…6=Domingo), com comentário sobre conversão `(jsDay + 6) % 7`.
-- Modal overlay re-tokenizado de `PainelCozinha.css`: `rgba(18, 76, 15, 0.35)` (verde translúcido conforme DESIGN.md) em vez do preto legado `rgba(0,0,0,0.6)`.
+- Modal overlay re-tokenizado de `PainelCozinha.css`: `rgba(18, 76, 15, 0.35)` (verde translúcido conforme .planning/PROJECT.md) em vez do preto legado `rgba(0,0,0,0.6)`.
 - Usuarios.tsx definido como template do padrão CRUD para Itens e Cardápio (planos 02-03).
 - useEffect com `cancelled` flag — compatível com regra `react-hooks/set-state-in-effect` (eslint-plugin-react-hooks v6+).
 - Responsividade do dashboard: `dashboard-grid` com `repeat(auto-fit, minmax(260px, 1fr))` — 4 cards em desktop, empilha em telas estreitas.

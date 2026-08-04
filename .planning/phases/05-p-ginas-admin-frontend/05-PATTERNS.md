@@ -148,7 +148,7 @@ useEffect(() => {
 }
 ```
 
-**Notas:** serif é PROIBIDA aqui (tela operacional — DESIGN.md §3); usar `--fonte-sans`. `saldo_atual` de itens críticos com `.toFixed(2)` (padrão `DashboardGestao.tsx:93`). `refeicoes_hoje` sempre tem 4 tipos (pendente/confirmado); `ultima_data` pode ser `null`.
+**Notas:** serif é PROIBIDA aqui (tela operacional — `.planning/PROJECT.md`); usar `--fonte-sans`. `saldo_atual` de itens críticos com `.toFixed(2)` (padrão `DashboardGestao.tsx:93`). `refeicoes_hoje` usa os 3 tipos atuais (`Lanche`, `Almoco`, `Janta`); `ultima_data` pode ser `null`.
 
 ---
 
@@ -324,7 +324,7 @@ const [modalAberto, setModalAberto] = useState(false);
 
 **Analog:** mesma base de Usuarios (acima) + formatação de saldo de `DashboardGestao.tsx`.
 
-**Saldo + badge de status pattern** (`DashboardGestao.tsx:93-100` — re-tokenizar: `status-alerta`/`status-ok` com tokens do DESIGN.md, saldo em `--erro` **negrito**, nunca fundo vermelho cheio — D-07/DESIGN.md §5.2):
+**Saldo + badge de status pattern** (`DashboardGestao.tsx:93-100` — re-tokenizar: `status-alerta`/`status-ok` com tokens do .planning/PROJECT.md, saldo em `--erro` **negrito**, nunca fundo vermelho cheio — D-07/.planning/PROJECT.md §5.2):
 ```tsx
 <td className={item.saldo_atual < LIMIAR_BAIXO_ESTOQUE ? 'saldo-baixo' : 'saldo-normal'}>
   {item.saldo_atual.toFixed(2)}
@@ -438,7 +438,7 @@ export const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'S
 .badge-excluido { background-color: var(--erro-fundo); color: var(--erro); }
 ```
 
-**Modal de justificativa (D-10 + DESIGN.md §5.4):** reutilizar estrutura `.modal-overlay/.modal-content`; textarea obrigatório com **borda `--amarelo` até ser preenchido**; texto mencionando exigência de prestação de contas PNAE; submit bloqueado sem texto.
+**Modal de justificativa (D-10 + .planning/PROJECT.md §5.4):** reutilizar estrutura `.modal-overlay/.modal-content`; textarea obrigatório com **borda `--amarelo` até ser preenchido**; texto mencionando exigência de prestação de contas PNAE; submit bloqueado sem texto.
 
 **Upload pattern (novo — sem análogo; contrato de RESEARCH linha 227):**
 ```tsx
@@ -557,7 +557,7 @@ Guards de UI dentro de páginas (raro — secretaria tem acesso total a planejam
 ```css
 .modal-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(18, 76, 15, 0.35); /* verde translúcido — DESIGN.md, não preto */
+  background-color: rgba(18, 76, 15, 0.35); /* verde translúcido — .planning/PROJECT.md, não preto */
   display: flex; align-items: center; justify-content: center;
   padding: 1rem; z-index: 50;
 }
@@ -603,7 +603,7 @@ Sem enums TS, sem namespaces, sem parameter properties (`erasableSyntaxOnly`). H
 | Hex fora da paleta (`#2563eb`, `#16a34a`, `#dc2626`) | `PainelCozinha.css`, `DashboardGestao.tsx` | tokens `var(--*)` do `:root` |
 | `alert()` como feedback | legado | estado `erro` + `role="alert"` |
 | Strings de ação digitadas inline | — | `AcaoEntrega` de `types.ts` (`'excluído'` com acento) |
-| Serif em tela operacional | — | serif só em Login/Cardápio Público (DESIGN.md §3) |
+| Serif em tela operacional | — | serif só em Login/Cardápio Público (.planning/PROJECT.md §3) |
 
 ## No Analog Found
 

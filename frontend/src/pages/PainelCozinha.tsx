@@ -101,6 +101,9 @@ export default function PainelCozinha() {
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const receitaRequestId = useRef(0);
   const planejamentoRequestId = useRef(0);
+  const releituraRequestId = useRef(0);
+  const dataReferenciaAtual = useRef(dataReferencia);
+  const entradaSelecionadaAtual = useRef<number | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const botaoFecharRef = useRef<HTMLButtonElement>(null);
   const retornoFocoRef = useRef<HTMLElement | null>(null);
@@ -152,9 +155,9 @@ export default function PainelCozinha() {
   const carregarReceita = async (entrada: PlanejamentoEntrada, alunos: number) => {
     const requestId = receitaRequestId.current + 1;
     receitaRequestId.current = requestId;
+    entradaSelecionadaAtual.current = entrada.id;
     setEntradaSelecionada(entrada);
     setIngredientes([]);
-    setQtdAlunos(0);
     setErroReceita(null);
     setErroEnvio(null);
     setCarregandoReceita(true);
@@ -202,6 +205,7 @@ export default function PainelCozinha() {
   const abrirEditor = (entrada: PlanejamentoEntrada, origem?: HTMLElement) => {
     receitaRequestId.current += 1;
     retornoFocoRef.current = origem ?? null;
+    entradaSelecionadaAtual.current = entrada.id;
     setEntradaSelecionada(entrada);
     setIngredientes([]);
     setQtdAlunos(0);
@@ -217,6 +221,7 @@ export default function PainelCozinha() {
   };
 
   const fecharEditorAgora = () => {
+    entradaSelecionadaAtual.current = null;
     setEntradaSelecionada(null);
     setIngredientes([]);
     setQtdAlunos(0);
@@ -359,12 +364,19 @@ export default function PainelCozinha() {
     }
   };
 
-  const relerDepoisDaTentativa = async (): Promise<boolean> => {
+  const relerDepoisDaTentativa = async (data: string, entradaId: number): Promise<boolean> => {
+    const requestId = releituraRequestId.current + 1;
+    releituraRequestId.current = requestId;
     try {
       const [novoPlanejamento, novosItens] = await Promise.all([
-        fetchJson<PlanejamentoEntrada[]>(`/planejamento?data=${dataReferencia}`),
+        fetchJson<PlanejamentoEntrada[]>(`/planejamento?data=${data}`),
         fetchJson<Item[]>('/itens'),
       ]);
+      if (
+        releituraRequestId.current !== requestId
+        || dataReferenciaAtual.current !== data
+        || entradaSelecionadaAtual.current !== entradaId
+      ) return false;
       setPlanejamento(novoPlanejamento);
       setSaldos(Object.fromEntries(novosItens.map((item) => [item.id, item])));
       return true;
@@ -376,6 +388,8 @@ export default function PainelCozinha() {
   const handleFinalizar = async (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
     if (!entradaSelecionada || salvando) return;
+    const dataNoEnvio = dataReferencia;
+    const entradaIdNoEnvio = entradaSelecionada.id;
 
     const qtdValida = quantidadeAlunosValida(qtdAlunos);
     const ingredientesValidos = ingredientes.length > 0 && ingredientes.every(
@@ -413,7 +427,7 @@ export default function PainelCozinha() {
         }),
       });
 
-      const leituraConcluida = await relerDepoisDaTentativa();
+      const leituraConcluida = await relerDepoisDaTentativa(dataNoEnvio, entradaIdNoEnvio);
       if (!leituraConcluida) {
         setErroEnvio('Refeição registrada, mas não foi possível atualizar os dados exibidos. Tente novamente.');
         return;
@@ -422,7 +436,7 @@ export default function PainelCozinha() {
       setSlotConfirmado(entradaSelecionada.id);
       fecharEditorAgora();
     } catch (erro) {
-      await relerDepoisDaTentativa();
+      await relerDepoisDaTentativa(dataNoEnvio, entradaIdNoEnvio);
       setErroEnvio(mensagemDeErro(erro, 'Não foi possível registrar a refeição. O rascunho foi preservado.'));
     } finally {
       setSalvando(false);
@@ -450,11 +464,14 @@ export default function PainelCozinha() {
             id="data-referencia"
             type="date"
             value={dataReferencia}
+            disabled={salvando}
             onChange={(evento) => {
               if (!evento.target.value) return;
-              setCarregando(true);
-              setErroCarregamento(null);
-              setEntradaSelecionada(null);
+              dataReferenciaAtual.current = evento.target.value;
+               setCarregando(true);
+               setErroCarregamento(null);
+               entradaSelecionadaAtual.current = null;
+               setEntradaSelecionada(null);
               setIngredientes([]);
               setErroReceita(null);
               setErroEnvio(null);

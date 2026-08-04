@@ -1,8 +1,8 @@
 # Phase 5: Páginas Admin (Frontend) - Context
 
 **Gathered:** 2026-07-31
-**Status:** Ready for planning
-**Source:** Decisões sintetizadas de `.planning/PLAN.md` (seções 3, 4-Fase-5, 5) — travadas pelo usuário no plano de ação aprovado.
+**Status:** Historical context migration; phase complete
+**Source:** Contexto migrado do plano legado e validado pelos artefatos GSD da fase, pelo codigo atual e pelos testes da Fase 5.7. Este arquivo registra a migracao de contexto, nao reabre o planejamento da fase.
 
 <domain>
 ## Phase Boundary
@@ -16,7 +16,7 @@ Implementar as 7 páginas do painel administrativo: Dashboard, Usuários, Itens,
 
 ### Estilização e identidade visual
 - **D-01:** CSS plain co-localizado por página (ex.: `Usuarios.css` ao lado de `Usuarios.tsx`), seguindo o padrão de `Login.css`/`CardapioPublico.css`. Tailwind NÃO é usado (dependência inativa).
-- **D-02:** Tokens visuais obrigatórios do `DESIGN.md` (definidos em `src/index.css` `:root`): verde-escuro `#124C0F`, verde-vivo `#48BB2C`, amarelo `#C5D227`. Logo (`src/assets/Logo Nancy (Logotipo) (1).jpg`) é JPG com fundo branco — renderizar apenas em superfícies claras.
+- **D-02:** Tokens visuais obrigatórios do `.planning/PROJECT.md` (definidos em `src/index.css` `:root`): verde-escuro `#124C0F`, verde-vivo `#48BB2C`, amarelo `#C5D227`. Logo (`src/assets/Logo Nancy (Logotipo) (1).jpg`) é JPG com fundo branco — renderizar apenas em superfícies claras.
 
 ### Acesso à API e autenticação
 - **D-03:** Todas as chamadas via `fetchJson<T>`/`fetchWithAuth` de `src/api.ts` (base URL de `VITE_API_URL`, JWT do localStorage anexado automaticamente). Nenhuma URL hardcoded, nenhum `id_usuario` no body — o backend resolve o usuário pelo token.
@@ -27,16 +27,16 @@ Implementar as 7 páginas do painel administrativo: Dashboard, Usuários, Itens,
 - **D-06:** Sidebar do `Layout.tsx` ganha os links admin condicionados por perfil (`isAdmin`, `isSecretaria` do `useAuth`).
 
 ### Padrão de páginas CRUD
-- **D-07:** Usuários, Itens, Cardápio seguem o padrão tabela + modal CRUD (criar/editar/excluir com feedback visual), conforme testes F7–F9 do `TESTING.md`. Itens destaca visualmente baixo estoque (limiar definido no backend: 5.0 unidade oficial — badge/alerta no frontend).
+- **D-07:** Usuários, Itens, Cardápio seguem o padrão tabela + modal CRUD (criar/editar/excluir com feedback visual), conforme testes F7–F9 do `.planning/codebase/TESTING.md`. Itens destaca visualmente baixo estoque (limiar definido no backend: 5.0 unidade oficial — badge/alerta no frontend).
 - **D-08:** Receitas é editor de ingredientes por prato (`/admin/receitas/:id`): adicionar/remover/editar quantidade de ingrediente, consumindo `GET/POST /cardapio/{id}/receita` e PUT/DELETE de item.
-- **D-09:** Planejamento é uma grade semanal (dias da semana × tipos de refeição) com dropdown de pratos por slot; salvar faz upsert via `POST /planejamento` (vigência por `data_inicio_vigencia`); recarregar deve persistir (F10).
+- **D-09:** Planejamento é uma grade semanal (dias da semana × quatro slots de serviço) com dropdown de pratos filtrado pelo tipo correspondente; salvar faz upsert via `POST /planejamento` (vigência por `data_inicio_vigencia`); recarregar deve persistir (F10).
 
 ### Entregas (manual + XML)
 - **D-10:** Entrada manual: tabela editável de itens; alterar ou excluir item EXIGE justificativa (backend retorna 400 sem ela) — modal de justificativa obrigatória antes do submit (F11).
-- **D-11:** Upload de XML NF-e parseado NO FRONTEND com `fast-xml-parser` (decisão do PRD seção 5); o parse popula a tabela editável, que depois segue o mesmo fluxo da manual (F12). Verificar se `fast-xml-parser` está em `frontend/package.json`; se não estiver, adicionar.
+- **D-11:** Upload de XML NF-e parseado NO FRONTEND com `fast-xml-parser` (decisão consolidada em `.planning/PROJECT.md` e `.planning/REQUIREMENTS.md`); o parse popula a tabela editável, que depois segue o mesmo fluxo da manual (F12). Verificar se `fast-xml-parser` está em `frontend/package.json`; se não estiver, adicionar.
 
 ### Qualidade e verificação
-- **D-12:** Critério de saída: `npm run build` (typecheck + bundle) e `npm run lint` com ZERO erros/warnings. Testes de frontend são manuais — checklist F6–F12 do `TESTING.md` (sem framework E2E; Playwright adiado).
+- **D-12:** Critério de saída: `npm run build` (typecheck + bundle) e `npm run lint` com ZERO erros/warnings. Testes de frontend são manuais — checklist F6–F12 do `.planning/codebase/TESTING.md` (sem framework E2E; Playwright adiado).
 - **D-13:** TypeScript estrito: `verbatimModuleSyntax` (usar `import type { X }` para tipos) e `erasableSyntaxOnly` (sem enums, namespaces, parameter properties).
 
 ### the agent's Discretion
@@ -62,25 +62,25 @@ Implementar as 7 páginas do painel administrativo: Dashboard, Usuários, Itens,
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Escopo e tarefas da fase
-- `.planning/PLAN.md` §4 "Fase 5 — Páginas Admin" — tarefas 5.1–5.7 com arquivos-alvo e critério de saída
-- `.planning/PLAN.md` §5 "Mapa de Rotas" — tabela rota × página × perfil (inclui admin+secretaria em planejamento/entregas)
+- `.planning/ROADMAP.md` — objetivo, requisitos, planos e criterio de saida da Fase 5
+- `.planning/REQUIREMENTS.md` — requisitos STOCK, MENU, DELIV, DASH e QUAL cobertos pela fase
 
 ### API e modelos de dados
-- `spec.md` §3.2–3.7, §3.10 — contratos dos endpoints consumidos (usuários, itens, conversões, cardápio/receitas, planejamento, entregas, dashboard)
-- `spec.md` §2 — modelo de dados (nomes de campos das tabelas que os endpoints retornam)
+- `backend/main.py` e `backend/schemas.py` — contratos atuais dos endpoints consumidos
+- `.planning/codebase/ARCHITECTURE.md` — fluxo e limites entre frontend, API e banco
 - `backend/schemas.py` — shapes Pydantic exatos a espelhar em `src/types.ts`
 
 ### Frontend existente (padrões a replicar)
 - `frontend/src/api.ts` — `fetchJson`/`fetchWithAuth`/`ApiError` (único caminho de API)
 - `frontend/src/auth-context.ts` — `useAuth`, `isAdmin`/`isSecretaria`, `ROTA_POR_PERFIL`
 - `frontend/src/components/ProtectedRoute.tsx` + `frontend/src/components/Layout.tsx` — wrapper obrigatório das rotas admin
-- `frontend/src/pages/CardapioPublico.tsx` + `.css` — referência de CSS plain co-localizado com tokens do DESIGN.md
+- `frontend/src/pages/CardapioPublico.tsx` + `.css` — referencia de CSS plain co-localizado com tokens do `.planning/PROJECT.md`
 - `frontend/src/pages/DashboardGestao.tsx` — referência de loading/error/alertas (padrão a repetir, NÃO a forma de API — ela usa URL hardcoded legada)
 - `frontend/src/App.tsx` — padrão de registro de rota protegida
 
 ### Identidade visual e testes
-- `DESIGN.md` — regras de marca da escola (paleta, brasão, superfícies claras para o logo)
-- `TESTING.md` — checklist F6–F12 (critérios manuais de aceite desta fase) e regra de zero warnings
+- `.planning/PROJECT.md` — regras de marca da escola (paleta, brasão, superfícies claras para o logo)
+- `.planning/codebase/TESTING.md` — checklist F6–F12 (critérios manuais de aceite desta fase) e regra de zero warnings
 - `AGENTS.md` — convenções do projeto (`verbatimModuleSyntax`, venv do backend, rodar uvicorn de `backend/`)
 
 </canonical_refs>
@@ -114,7 +114,7 @@ Implementar as 7 páginas do painel administrativo: Dashboard, Usuários, Itens,
 
 - Migração de `PainelCozinha.tsx` (remover `cardapiosPadrao` hardcoded, ajustes auditados) e `DashboardGestao.tsx` → **Phase 6**
 - Polimento/responsividade do cardápio público → **Phase 7**
-- Playwright E2E, CI/CD, Alembic/PostgreSQL → fora do escopo do milestone (ver PLAN.md §3 e STATE.md Deferred Items)
+- Playwright E2E, CI/CD, Alembic/PostgreSQL → fora do escopo do milestone (ver `.planning/PROJECT.md` e `.planning/STATE.md`)
 - Importação de NF-e com validação de schema SEFAZ — o parse frontend é best-effort; validação fiscal formal não é escopo
 
 </deferred>

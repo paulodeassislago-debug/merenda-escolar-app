@@ -1,4 +1,4 @@
-/* src/components/Layout.css — tokens do DESIGN.md (index.css) */
+/* src/components/Layout.css — tokens do .planning/PROJECT.md (index.css) */
 
 .layout {
   display: flex;
@@ -30,7 +30,7 @@
   margin-bottom: 1rem;
 }
 
-/* O JPG do brasão tem fundo branco embutido: container branco obrigatório (DESIGN.md 4.2) */
+/* O JPG do brasão tem fundo branco embutido: container branco obrigatório (.planning/PROJECT.md) */
 .layout-logo-container {
   background-color: var(--branco);
   border-radius: 50%;
@@ -78,7 +78,7 @@
   color: var(--branco);
 }
 
-/* Item ativo: borda lateral verde-vivo (DESIGN.md 5.5) */
+/* Item ativo: borda lateral verde-vivo (.planning/PROJECT.md) */
 .layout-link-ativo,
 .layout-link-ativo:hover {
   background-color: rgba(72, 187, 44, 0.22);
@@ -131,7 +131,7 @@
   color: var(--texto-suave);
 }
 
-/* Badges de perfil (DESIGN.md 5.3) */
+/* Badges de perfil (.planning/PROJECT.md) */
 .layout-badge {
   font-size: 0.7rem;
   font-weight: 700;

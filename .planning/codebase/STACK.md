@@ -1,96 +1,55 @@
 # Technology Stack
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-03
 
-## Languages
+## Applications
 
-**Primary:**
-- Python 3.12 - Backend API (`backend/`)
-- TypeScript ~6.0 - Frontend SPA (`frontend/src/`)
+- `backend/`: Python 3.12, FastAPI 0.139.2, SQLAlchemy 2.0.51 and Pydantic 2.13.4.
+- `frontend/`: React 19.2.7, Vite 8.1.1, TypeScript 6.0.2 and React Router DOM 7.11.0.
+- No monorepo workspace tooling; each application is run and built from its own directory.
 
-**Secondary:**
-- CSS 3 (plain `.css` files) - Component styling
+## Backend Dependencies
 
-## Runtime & Package Management
+The reproducible dependency list is `backend/requirements.txt`.
 
-**Backend:**
-- Runtime: Python 3.12 (virtual environment at `backend/venv/`)
-- Package manager: pip (via `backend/requirements.txt`)
-- Lock file: Not present (requirements.txt is pinned)
+- API: `fastapi`, `uvicorn`, `starlette`.
+- Data: `SQLAlchemy`, `greenlet`, SQLite through Python's standard library.
+- Validation: `pydantic`, `pydantic-core`, `annotated-types`.
+- Auth: `python-jose`, `cryptography`, `passlib`, `bcrypt`.
+- Configuration: `python-dotenv`.
+- Tests: `pytest`, `httpx`.
 
-**Frontend:**
-- Runtime: Node.js 20+ (Dockerfile targets `node:20-alpine`)
-- Package manager: npm
-- Lock file: `frontend/package-lock.json`
+## Frontend Dependencies
 
-## Backend Framework
+- UI/runtime: `react`, `react-dom`, `react-router-dom`.
+- Build: `vite`, `typescript`, `@vitejs/plugin-react`.
+- XML: `fast-xml-parser` for client-side NF-e parsing.
+- Quality: ESLint, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`.
+- CSS tooling exists in dependencies, but production page styling follows plain co-located CSS and CSS variables.
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| FastAPI | 0.139.2 | Web framework, auto-generated OpenAPI docs at `/docs` |
-| Uvicorn | 0.51.0 | ASGI server with hot-reload |
-| SQLAlchemy | 2.0.51 | ORM for database access |
-| Pydantic | 2.13.4 | Request/response validation schemas (inline in `backend/main.py`) |
-| Starlette | 1.3.1 | FastAPI's underlying ASGI toolkit (CORS middleware) |
+## Database and Runtime
 
-**Key backend dependencies:**
-- `python-jose` 3.5.0 — JWT token creation and decoding (HS256)
-- `passlib` 1.7.4 + `bcrypt` 4.0.1 — Password hashing
-- `httpx` 0.28.1 — HTTP client (used internally by FastAPI test client)
-- `pytest` 9.1.1 — Test runner
-
-## Frontend Framework
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| React | 19.2.7 | UI library |
-| React DOM | 19.2.7 | DOM rendering |
-| React Router DOM | 7.11.0 | Client-side routing (BrowserRouter) |
-| Vite | 8.1.1 | Build tool and dev server |
-| TypeScript | ~6.0.2 | Type checking |
-| Tailwind CSS | 4.3.3 | Utility-first CSS framework (configured but largely unused in components) |
-| fast-xml-parser | 5.10.1 | XML parsing for NF-e (nota fiscal) on the frontend |
-
-**Dev dependencies:**
-- ESLint 10.6.0 (`eslint.config.js` — flat config format)
-- `typescript-eslint` 8.62.0 — TypeScript lint rules
-- `eslint-plugin-react-hooks` 7.1.1 — Hooks rules
-- `@vitejs/plugin-react` 6.0.3 — React Fast Refresh for Vite
-- PostCSS 8.5.21 + `@tailwindcss/postcss` 4.3.3 + `autoprefixer` 10.5.4 — CSS processing
-- `@types/react` 19.2.17, `@types/react-dom` 19.2.3 — TypeScript type definitions
-
-## Database
-
-- Type: SQLite (development)
-- File: `backend/merenda.db` — auto-created on first startup
-- ORM: SQLAlchemy 2.0.51 with `declarative_base()`
-- Connection string: `sqlite:///./merenda.db` (defined in `backend/database.py:6`)
-- Production target: PostgreSQL (planned, per `backend/context.md` and `PRD.md`)
+- Development database: `backend/merenda.db`.
+- URL: `sqlite:///./merenda.db`, relative to the process working directory.
+- Initialization: `models.Base.metadata.create_all(bind=engine)`.
+- Tests: in-memory SQLite with StaticPool from `backend/tests/conftest.py`.
+- Production target: PostgreSQL with a future migration system; Alembic is deliberately deferred.
 
 ## Infrastructure
 
-**Deployment:**
-- Docker + Coolify (single VPS)
-- Backend Dockerfile (`backend/Dockerfile`): `python:3.11-slim`, uvicorn on port 8000
-- Frontend Dockerfile (`frontend/Dockerfile`): multi-stage build — Node.js 20 Alpine for build, Nginx Alpine for serving port 80
+- Backend and frontend have separate Dockerfiles.
+- Frontend is built with Node 20 and served by Nginx.
+- Deployment target is one VPS managed through Coolify.
 
-**Configuration files:**
+## Commands
 
-| File | Purpose |
-|------|---------|
-| `backend/requirements.txt` | Python dependencies (pinned versions) |
-| `frontend/package.json` | Node dependencies and scripts |
-| `frontend/tsconfig.json` | TypeScript project references root |
-| `frontend/tsconfig.app.json` | App TypeScript config (ES2023, strict) |
-| `frontend/tsconfig.node.json` | Node-side TypeScript config (for vite.config.ts) |
-| `frontend/vite.config.ts` | Vite build config (React plugin) |
-| `frontend/eslint.config.js` | ESLint flat config |
-| `frontend/tailwind.config.js` | Tailwind v4 content paths |
-| `frontend/postcss.config.js` | PostCSS pipeline (Tailwind + autoprefixer) |
+- Backend: from `backend/`, activate `venv` and run `pytest tests/ -v` or `uvicorn main:app --reload --host 0.0.0.0 --port 8000`.
+- Frontend: from `frontend/`, run `npm run build`, `npm run lint` or `npm run dev`.
 
-**Build commands:**
-- Frontend: `npm run build` runs `tsc -b && vite build` — typecheck then bundle
-- Backend: No build step; Python runs directly
+## Version Notes
 
-<!-- refreshed: 2026-07-31 -->
-*Stack analysis: 2026-07-31*
+- The Phase 5.7 completion baseline was 94 tests; the current worktree baseline is 100 passing tests.
+- The current frontend baseline is a clean build and lint after Phase 5.7.
+
+---
+*Refreshed: 2026-08-03 after Phase 5.7*

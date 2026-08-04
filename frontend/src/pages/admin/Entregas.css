@@ -1,4 +1,4 @@
-/* src/pages/admin/Entregas.css — Entregas (DESIGN.md tokens) */
+/* src/pages/admin/Entregas.css — Entregas (.planning/PROJECT.md tokens) */
 
 /* =========================================================================
    Shared vocabulary (replicado de Usuarios.css — cada página é self-contained)
@@ -484,6 +484,10 @@ select.form-input {
   white-space: nowrap;
 }
 
+.detalhe-item-conversao {
+  color: var(--verde-escuro);
+}
+
 .detalhe-justificativa {
   width: 100%;
   margin-top: 0.375rem;
@@ -521,6 +525,39 @@ select.form-input {
   font-size: 0.75rem;
   color: var(--texto-suave);
   margin-top: 0.25rem;
+}
+
+/* Unidade escolhida e conversão da linha da entrega */
+.entrega-unidade-controles,
+.entrega-conversao-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.entrega-unidade-controles label,
+.entrega-conversao-inline label {
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+
+.entrega-unidade-controles .form-input {
+  min-width: 115px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.entrega-conversao-inline .form-input {
+  width: 85px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.entrega-conversao-inline span {
+  font-weight: 600;
+  color: var(--verde-escuro);
 }
 
 /* Editor footer actions row (add item + submit) */

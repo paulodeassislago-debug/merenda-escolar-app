@@ -41,7 +41,7 @@ key-decisions:
   - "Select de tipo_refeicao restrito às 4 strings de TIPOS_REFEICAO (import de constants.ts) — backend rejeita variantes com 400"
   - "nomeItem() como função de merge local: busca item_nome no catálogo de itens carregado quando a resposta POST/PUT não o inclui"
   - "Edição inline de ingredientes com Salvar/Cancelar por linha — preserva o contexto visual da tabela"
-  - "Modal overlay re-tokenizado: rgba(18, 76, 15, 0.35) verde translúcido conforme DESIGN.md"
+  - "Modal overlay re-tokenizado: rgba(18, 76, 15, 0.35) verde translúcido conforme .planning/PROJECT.md"
 
 patterns-established:
   - "Pattern 1: useParams<{ id: string }>() + Number(id) — primeira página do projeto com parâmetro de rota"
@@ -111,7 +111,7 @@ status: complete
 - Formulário inline de adição: select de item (nome + unidade_oficial), quantidade (`step="0.1"`), medida caseira (placeholder "ex.: 1 xícara")
 - Edição inline por linha com Salvar/Cancelar (PUT /cardapio/{id}/receita/{receita_id}) e remoção destrutiva com modal de confirmação
 - Merge local de `item_nome` via `nomeItem()`: após POST/PUT (que não retornam `item_nome`), a tabela exibe o nome correto a partir do catálogo de itens já carregado (gotcha #11 do RESEARCH coberto)
-- Ambos os `.css` co-localizados seguem o vocabulário compartilhado (`.pagina-header`, `.card`, `.tabela-*`, `.badge`, `.btn-*`, `.modal-*`, `.form-*`, `.alerta-erro`) com tokens `var(--*)` do DESIGN.md
+- Ambos os `.css` co-localizados seguem o vocabulário compartilhado (`.pagina-header`, `.card`, `.tabela-*`, `.badge`, `.btn-*`, `.modal-*`, `.form-*`, `.alerta-erro`) com tokens `var(--*)` do .planning/PROJECT.md
 - Células de tabela com `word-wrap: break-word` para nomes longos (backstop long-text do UI-SPEC)
 
 ## Task Commits
@@ -124,7 +124,7 @@ Each task was committed atomically:
 ## Files Created/Modified
 
 - `frontend/src/pages/admin/Cardapio.tsx` — CRUD completo de pratos (substitui scaffolding de 9 linhas)
-- `frontend/src/pages/admin/Cardapio.css` — CSS co-localizado com tokens var(--*) do DESIGN.md
+- `frontend/src/pages/admin/Cardapio.css` — CSS co-localizado com tokens var(--*) do .planning/PROJECT.md
 - `frontend/src/pages/admin/Receitas.tsx` — Editor de ingredientes por prato (substitui scaffolding de 13 linhas)
 - `frontend/src/pages/admin/Receitas.css` — CSS co-localizado com tokens + classes do form inline
 

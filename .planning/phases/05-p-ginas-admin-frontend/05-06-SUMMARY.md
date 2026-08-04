@@ -124,9 +124,9 @@ None — no external service configuration required.
 
 ## Next Phase Readiness
 
-- All automated exit gates are green. Phase 05 is ready for `/gsd-verify-work` to run the manual checklist F6–F12 (Dashboard, Usuários, Itens, Cardápio/Receitas, Planejamento, Entregas manual, Entregas XML).
+- All automated exit gates were green. The manual checklist F6–F12 is now recorded as complete in `05-UAT.md`, including the XML flow.
 - Setup for manual UAT: backend running from `backend/` with venv activated + `npm run dev` in frontend/ + seed users `admin/admin123` and `secretaria/secretaria123`.
-- XML NF-e synthetic file needed for F12.
+- F12 XML NF-e foi validado manualmente em 2026-08-03; arquivo sintético deixou de ser pendência de aceite.
 
 ---
 

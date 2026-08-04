@@ -1,6 +1,6 @@
 // src/components/Layout.tsx
 // Sidebar condicional por perfil + header com usuário e logout.
-// Visual conforme DESIGN.md: sidebar verde-escuro, logo em container branco.
+// Visual conforme .planning/PROJECT.md: sidebar verde-escuro, logo em container branco.
 
 import { NavLink, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';

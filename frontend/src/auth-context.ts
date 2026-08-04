@@ -22,7 +22,7 @@ export const AuthContext = createContext<AuthState | null>(null);
 export const TOKEN_KEY = 'pnae_token';
 export const USUARIO_KEY = 'pnae_usuario';
 
-/** Rota inicial de cada perfil após o login (mapa de rotas do PLAN.md). */
+/** Rota inicial de cada perfil após o login (mapa de rotas do .planning/ROADMAP.md). */
 export const ROTA_POR_PERFIL: Record<Perfil, string> = {
   admin: '/admin',
   secretaria: '/gestao',

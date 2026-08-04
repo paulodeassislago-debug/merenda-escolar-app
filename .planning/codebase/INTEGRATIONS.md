@@ -1,57 +1,43 @@
 # External Integrations
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-03
 
-## Database
+## Internal API Integration
 
-- **Type:** SQLite (development)
-- **Connection string:** `sqlite:///./merenda.db` — `backend/database.py:6`
-- **Database file:** `backend/merenda.db` (auto-created on first `uvicorn` startup)
-- **Migrations:** Not implemented — schema is created automatically via `models.Base.metadata.create_all(bind=engine)` in `backend/main.py:10`. Tables are dropped and recreated on schema changes (no migration framework like Alembic).
-- **Test database:** SQLite in-memory (`sqlite:///:memory:`) — isolated per test via `backend/tests/conftest.py`
-
-## External APIs
-
-**None detected.** The application does not consume any third-party APIs. All data comes from:
-- Local SQLite database
-- User input via the frontend UI
-- (Planned) XML NF-e files parsed client-side using `fast-xml-parser`
+- Frontend calls the FastAPI backend through `frontend/src/api.ts`.
+- `fetchWithAuth` adds the JWT bearer token from localStorage.
+- `fetchJson` decodes JSON and raises `ApiError` with the backend detail message.
+- `VITE_API_URL` is the frontend API base URL.
+- Legacy pages `PainelCozinha.tsx` and `DashboardGestao.tsx` still contain hardcoded URLs and are the explicit Phase 6 migration scope.
 
 ## Authentication
 
-- **Current state:** Hybrid — backend has real JWT auth, frontend login uses simulated routing
-  - **Backend:** Real JWT authentication via `backend/auth.py` — `POST /auth/login` returns `{ access_token, perfil }`, `GET /auth/me` validates the token. Tokens use HS256, expire after 8 hours.
-  - **Frontend:** Login page (`frontend/src/pages/Login.tsx:13-18`) routes based on username string matching (`admin` → `/gestao`, anything else → `/cozinha`). No actual API call to `/auth/login`.
-  - **Hardcoded user ID:** `PainelCozinha.tsx:82` uses `id_usuario: 1` for meal submissions.
-- **Mechanism:** JWT (Bearer token) via `python-jose[cryptography]`, password hashing via `passlib[bcrypt]`.
-- **Secret key:** Default `"chave-dev-trocar-em-producao"` — override via `SECRET_KEY` environment variable (`backend/auth.py:14`).
-- **Token expiry:** 8 hours (`ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8` at `backend/auth.py:16`).
+- `POST /auth/login` returns an access token and profile.
+- `GET /auth/me` validates the current user.
+- Backend authorization is enforced with `require_perfil`.
+- Frontend authorization is enforced with `ProtectedRoute` and `Layout` navigation.
+
+## Database
+
+- SQLite is local and file-backed at `backend/merenda.db`.
+- Database schema is created automatically; there is no production migration layer yet.
+- Tests replace the application database with in-memory SQLite fixtures.
+
+## File-Based Integration
+
+- XML NF-e is uploaded by the browser and parsed with `fast-xml-parser`.
+- Parsed rows are matched against the stock catalog and require human review before confirmation.
+- XML parsing is intentionally best-effort; formal SEFAZ schema validation is out of scope.
 
 ## External Services
 
-**None detected.** No third-party services, payment processors, email providers, or cloud APIs are integrated.
+No external API, payment processor, email provider, webhook or cloud data service is integrated.
 
-## Webhooks & Callbacks
+## Environment
 
-- **Incoming:** None
-- **Outgoing:** None
+- Backend environment values use `.env`/`python-dotenv` for secrets and configuration.
+- Frontend environment values use Vite variables, primarily `VITE_API_URL`.
+- CORS is configured by the backend for local frontend origins and must be reviewed for production deployment.
 
-## Environment Configuration
-
-- **`SECRET_KEY`** (optional): JWT signing key. Defaults to dev key if not set (`backend/auth.py:14`).
-- No `.env` file detected in the repository root, `backend/`, or `frontend/`.
-- **CORS origins** are hardcoded in `backend/main.py:17-20`:
-  - `http://localhost:5173`
-  - `http://127.0.0.1:5173`
-- **API base URL** is hardcoded in the frontend:
-  - `http://127.0.0.1:8000` in `PainelCozinha.tsx:90` (POST `/refeicoes/lancar`)
-  - `http://127.0.0.1:8000` in `DashboardGestao.tsx:15` (GET `/estoque`)
-
-## CI/CD & Deployment
-
-- **CI Pipeline:** None configured
-- **Hosting:** Single VPS via Docker + Coolify
-- **Container orchestration:** No `docker-compose.yml` — separate Dockerfiles per app, orchestrated by Coolify
-
-<!-- refreshed: 2026-07-31 -->
-*Integration analysis: 2026-07-31*
+---
+*Refreshed: 2026-08-03 after Phase 5.7*

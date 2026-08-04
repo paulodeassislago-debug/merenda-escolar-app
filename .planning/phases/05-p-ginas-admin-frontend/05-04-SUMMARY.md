@@ -23,7 +23,7 @@ actuals:
 tech-stack:
   added: []
   patterns:
-    - "Grade 7×4 com junção local: GET /planejamento?data= retorna só slots vigentes → junção com 28 slots (7 dias × 4 tipos) via buildSelecoes()"
+    - "Grade 7×4 com junção local: GET /planejamento?data= retorna só slots vigentes → junção com 28 slots (7 dias × 4 slots de serviço) via buildSelecoes()"
     - "Dropdown filtrado por tipo_refeicao da coluna (gotcha #6 mitigado — backend não valida coerência prato×tipo)"
     - "Conversão JS→backend dia: (jsDay + 6) % 7 em segundaDaSemana() (gotcha #1)"
     - "Refetch pós-salvar como prova de persistência (F10): carregarDados() após sucesso"
@@ -93,7 +93,7 @@ status: complete
 
 ## Accomplishments
 
-- Grade semanal 7×4 funcional: linhas = 7 dias (Segunda..Domingo, indexados pelo backend 0..6), colunas = 4 tipos de refeição
+- Grade semanal 7×4 funcional: linhas = 7 dias (Segunda..Domingo, indexados pelo backend 0..6), colunas = 4 slots de planejamento
 - Dropdowns filtrados por `tipo_refeicao` da coluna — mitigação do gotcha #6 (backend não valida coerência prato×tipo)
 - Conversão correta JS→backend: `(jsDay + 6) % 7` em `segundaDaSemana()` — mitiga gotcha #1
 - Células vazias exibem "— A definir —" em `--texto-suave` itálico; células preenchidas mostram o prato atual

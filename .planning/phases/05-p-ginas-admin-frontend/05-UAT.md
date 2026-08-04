@@ -3,7 +3,7 @@ status: complete
 phase: 05-p-ginas-admin-frontend
 source: [05-VERIFICATION.md]
 started: 2026-08-02T02:30:00Z
-updated: 2026-08-02T02:50:00Z
+updated: 2026-08-03T00:00:00Z
 ---
 
 ## Current Test
@@ -38,8 +38,8 @@ result: pass
 
 ### 7. F12 — Upload XML NF-e + revisão humana
 expected: Fazer upload de arquivo XML NF-e. Parser extrai itens e popula a tabela de revisão. Confirmar ou rejeitar cada linha. Itens confirmados viram registros de entrega.
-result: skipped
-reason: "Deferred follow-up: test later"
+result: pass
+validated: "2026-08-03 — validação manual confirmada; o recurso de upload XML funciona no fluxo de entregas."
 
 ### 8. Layout responsivo (backstop overflow)
 expected: Páginas com tabelas largas (Itens, Entregas) mantêm usabilidade em viewport estreita (360px). Sem transbordamento horizontal que esconda dados.
@@ -56,16 +56,14 @@ result: pass
 ## Summary
 
 total: 10
-passed: 9
+passed: 10
 issues: 0
 pending: 0
-skipped: 1
+skipped: 0
 blocked: 0
 
 ## Deferred Follow-Ups
 
-- test: 7
-  idea: "test later (F12 — Upload XML NF-e + revisão humana)"
-  deferred_at: 2026-08-02
+None for the Phase 5 manual UAT. Formal fiscal schema validation remains out of scope.
 
 ## Gaps

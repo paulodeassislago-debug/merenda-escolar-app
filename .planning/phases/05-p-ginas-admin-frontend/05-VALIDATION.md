@@ -60,7 +60,7 @@ created: 2026-07-31
 
 ## Wave 0 Requirements
 
-- [x] Infra existente cobre a fase: typecheck via `npm run build` (tsc), lint via `npm run lint`, backend pytest (77 testes) como guarda de regressão — nenhuma instalação necessária
+- [x] Infra existente cobre a fase: typecheck via `npm run build` (tsc), lint via `npm run lint`, backend pytest como guarda de regressão — 94 testes no fechamento de 05-07 e 100 no baseline atual; nenhuma instalação necessária
 
 *Existing infrastructure covers all phase requirements.*
 
@@ -89,4 +89,4 @@ created: 2026-07-31
 - [x] Feedback latency < 60s
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** approved by exit-gate plan 05-06 — build ✅, lint ✅, pytest ✅ (77 passed), zero anti-patterns, all 12 tasks ✅ green
+**Approval:** approved by exit-gate plan 05-06 — build ✅, lint ✅, pytest ✅ (100 passed no baseline atual), zero anti-patterns, all 12 tasks ✅ green; F12 validado manualmente em 2026-08-03

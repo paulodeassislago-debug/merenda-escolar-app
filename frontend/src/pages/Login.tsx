@@ -1,5 +1,5 @@
 // src/pages/Login.tsx — login real com JWT (Fase 4)
-// Visual cerimonial conforme DESIGN.md: logo 120px, nome da escola em serif.
+// Visual cerimonial conforme .planning/PROJECT.md: logo 120px, nome da escola em serif.
 
 import { useState } from 'react';
 import type { FormEvent } from 'react';

@@ -1,5 +1,5 @@
 // src/pages/CardapioPublico.tsx — cardápio do dia, acesso público (sem login)
-// Página cerimonial (DESIGN.md): logo, nome da escola em serif, sem navegação autenticada.
+// Página cerimonial (.planning/PROJECT.md): logo, nome da escola em serif, sem navegação autenticada.
 
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../api';

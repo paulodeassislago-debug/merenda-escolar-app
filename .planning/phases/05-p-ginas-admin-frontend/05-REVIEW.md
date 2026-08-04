@@ -133,7 +133,7 @@ O tipo `justificativaPendente` precisa ser estendido para carregar `quantidadePe
 
 **File:** `frontend/src/pages/admin/Planejamento.tsx:123-174`
 
-**Issue:** `handleSalvar` itera sobre 28 slots (7 dias × 4 tipos de refeição) com `await` sequencial em cada API call alterada (linhas 136–164). Se o slot N falhar (ex.: erro de rede, validação do backend), os slots 1 a N−1 já foram persistidos no servidor, mas:
+**Issue:** `handleSalvar` itera sobre 28 slots (7 dias × 4 slots de planejamento) com `await` sequencial em cada API call alterada (linhas 136–164). Se o slot N falhar (ex.: erro de rede, validação do backend), os slots 1 a N−1 já foram persistidos no servidor, mas:
 
 1. O `catch` na linha 169 define `erro` e **não chama** `carregarDados()` — a refetch está dentro do `try` (linha 167). O estado `entradas` permanece stale com os valores pré-save.
 2. Se o usuário corrigir o erro e clicar "Salvar planejamento" novamente, `mapaVigente` (linhas 130–133) é construído com dados stale. Slots já salvos serão comparados contra valores antigos e reenviados — o backend pode criar duplicatas (se o POST não for idempotente) ou retornar erros inesperados.
