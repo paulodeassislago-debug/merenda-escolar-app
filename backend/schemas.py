@@ -157,6 +157,8 @@ class EntregaItemRequest(BaseModel):
     item_id: int
     quantidade: float
     acao: str  # "recebido" | "alterado" | "excluído"
+    unidade: str | None = None
+    fator_conversao: float | None = None
     justificativa: str | None = None
 
 
@@ -170,11 +172,12 @@ class RefeicaoItemRequest(BaseModel):
     item_id: int
     quantidade: float
     medida_caseira: str
+    peso_em_kg: float | None = None
     justificativa: str | None = None
 
 
 class RefeicaoCreate(BaseModel):
     tipo_refeicao: str
-    qtd_alunos: int
+    qtd_alunos: int = Field(gt=0)
     planejamento_id: int | None = None
     itens: list[RefeicaoItemRequest] = Field(min_length=1)

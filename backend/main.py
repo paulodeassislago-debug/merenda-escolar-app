@@ -919,8 +919,8 @@ def lancar_refeicao_v2(
 ):
     """Lança uma refeição: converte medidas caseiras, deduz o estoque e audita ajustes.
 
-    Se `planejamento_id` for informado, quantidades divergentes da receita planejada
-    (ou itens fora da receita) exigem justificativa.
+    Se `planejamento_id` for informado, a receita é escalada pelo número de alunos.
+    Quantidades divergentes da receita escalada (ou itens fora da receita) exigem justificativa.
     """
     if dados.tipo_refeicao not in TIPOS_REFEICAO_VALIDOS:
         raise HTTPException(
@@ -962,19 +962,20 @@ def lancar_refeicao_v2(
                 detail=f"Estoque insuficiente de '{item.nome}': necessário {qtd_oficial:.3f}, disponível {item.saldo_atual:.3f}",
             )
 
-        # Auditoria: divergência da receita planejada exige justificativa
+        # Auditoria: a receita-base é por aluno; divergência da receita escalada exige justificativa.
         receita_item = receita_map.get(item_req.item_id)
+        quantidade_esperada = receita_item.quantidade * dados.qtd_alunos if receita_item else None
         if dados.planejamento_id is not None:
-            divergente = receita_item is None or receita_item.quantidade != item_req.quantidade
+            divergente = receita_item is None or abs(quantidade_esperada - item_req.quantidade) > 1e-9
             if divergente and not item_req.justificativa:
                 motivo = "não faz parte da receita planejada" if receita_item is None else \
-                    f"quantidade diverge da receita planejada ({receita_item.quantidade} {receita_item.medida_caseira})"
+                    f"quantidade diverge da receita planejada ({quantidade_esperada} {receita_item.medida_caseira} para {dados.qtd_alunos} alunos)"
                 raise HTTPException(
                     status_code=400,
                     detail=f"Item '{item.nome}' {motivo} — justificativa obrigatória",
                 )
 
-        preparados.append((item, item_req, qtd_oficial, receita_item))
+        preparados.append((item, item_req, qtd_oficial, receita_item, quantidade_esperada))
 
     # 2. Persistir conversões novas e deduzir estoque
     for (item_id, _), (medida, peso) in conversoes_pendentes.items():
@@ -989,12 +990,12 @@ def lancar_refeicao_v2(
     db.add(refeicao)
     db.flush()  # garante o id antes de gravar os itens
 
-    for item, item_req, qtd_oficial, receita_item in preparados:
+    for item, item_req, qtd_oficial, receita_item, quantidade_esperada in preparados:
         item.saldo_atual -= qtd_oficial
         db.add(models.RefeicaoItem(
             refeicao_id=refeicao.id,
             item_id=item.id,
-            quantidade_original=receita_item.quantidade if receita_item else item_req.quantidade,
+            quantidade_original=quantidade_esperada if quantidade_esperada is not None else item_req.quantidade,
             quantidade_ajustada=item_req.quantidade,
             medida_caseira=item_req.medida_caseira,
             justificativa=item_req.justificativa,

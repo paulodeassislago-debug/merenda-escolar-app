@@ -1,4 +1,4 @@
-# Fase 3.3 — Refeições (R1–R6 do TESTING.md)
+# Fase 3.3 — Refeições (R1–R6 de .planning/codebase/TESTING.md)
 # POST somente cozinheira; GET /refeicoes admin+sec; GET /refeicoes/hoje admin+cozinheira
 # Fase 5.7 — Tipo "Lanche" unificado
 
@@ -181,7 +181,7 @@ def test_r8_perfil_errado(client, admin_user, admin_token, cozinheira_user, cozi
     assert client.get("/refeicoes/hoje", headers=_auth(cozinheira_token)).status_code == 200
 
 
-# R9 — Refeição ligada a planejamento: ajuste sem justificativa → 400
+# R9 — Refeição ligada a planejamento: receita escala por aluno e ajuste exige justificativa
 def test_r9_ajuste_sem_justificativa(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
     from datetime import date
     hoje = date.today()
@@ -209,29 +209,29 @@ def test_r9_ajuste_sem_justificativa(client, admin_user, admin_token, cozinheira
         headers=_auth(admin_token),
     ).json()
 
-    # Quantidade divergente da receita (3 kg vs 2 kg) sem justificativa → 400
+    # Receita-base de 2 kg × 3 alunos = 6 kg. Ajuste para 7 kg sem justificativa → 400
     resp = client.post(
         "/refeicoes",
         json={
             "tipo_refeicao": "Almoço",
-            "qtd_alunos": 200,
+            "qtd_alunos": 3,
             "planejamento_id": plan["id"],
-            "itens": [{"item_id": item["id"], "quantidade": 3, "medida_caseira": "kg"}],
+            "itens": [{"item_id": item["id"], "quantidade": 7, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
     )
     assert resp.status_code == 400
     assert "justificativa" in resp.json()["detail"].lower()
 
-    # Com justificativa → 200 e auditoria gravada (original=2, ajustada=3)
+    # Com justificativa → 200 e auditoria gravada (original=6 escalada, ajustada=7)
     resp = client.post(
         "/refeicoes",
         json={
             "tipo_refeicao": "Almoço",
-            "qtd_alunos": 200,
+            "qtd_alunos": 3,
             "planejamento_id": plan["id"],
             "itens": [
-                {"item_id": item["id"], "quantidade": 3, "medida_caseira": "kg", "justificativa": "Mais alunos que o previsto"},
+                {"item_id": item["id"], "quantidade": 7, "medida_caseira": "kg", "justificativa": "Mais quantidade final que a receita escalada"},
             ],
         },
         headers=_auth(cozinheira_token),
@@ -240,11 +240,11 @@ def test_r9_ajuste_sem_justificativa(client, admin_user, admin_token, cozinheira
 
     historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
     item_lancado = historico[0]["itens"][0]
-    assert item_lancado["quantidade_original"] == 2
-    assert item_lancado["quantidade_ajustada"] == 3
-    assert item_lancado["justificativa"] == "Mais alunos que o previsto"
-    # 3 kg deduzidos
-    assert _saldo(client, admin_token, item["id"]) == 47.0
+    assert item_lancado["quantidade_original"] == 6
+    assert item_lancado["quantidade_ajustada"] == 7
+    assert item_lancado["justificativa"] == "Mais quantidade final que a receita escalada"
+    # 7 kg deduzidos (a quantidade final enviada, não a quantidade-base)
+    assert _saldo(client, admin_token, item["id"]) == 43.0
 
 
 # R10 — Refeição conforme a receita planejada (sem divergência) → não exige justificativa
@@ -278,9 +278,9 @@ def test_r10_conforme_receita_sem_justificativa(client, admin_user, admin_token,
         "/refeicoes",
         json={
             "tipo_refeicao": "Almoço",
-            "qtd_alunos": 200,
+            "qtd_alunos": 3,
             "planejamento_id": plan["id"],
-            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+            "itens": [{"item_id": item["id"], "quantidade": 6, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
     )
@@ -290,6 +290,12 @@ def test_r10_conforme_receita_sem_justificativa(client, admin_user, admin_token,
     almoco = next(s for s in status if s["tipo_refeicao"] == "Almoço")
     assert almoco["status"] == "confirmado"
     assert almoco["prato"] == "Músculo com Batata"
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    item_lancado = historico[0]["itens"][0]
+    assert item_lancado["quantidade_original"] == 6
+    assert item_lancado["quantidade_ajustada"] == 6
+    assert item_lancado["justificativa"] is None
+    assert _saldo(client, admin_token, item["id"]) == 44.0
 
 
 # B10-1 — POST /refeicoes com tipo "Lanche" (unificado) → 200
@@ -323,3 +329,51 @@ def test_refeicoes_tipo_antigo_rejeitado(client, admin_user, admin_token, cozinh
         headers=_auth(cozinheira_token),
     )
     assert resp.status_code == 400
+
+
+# R11 — Medida nova pode informar a conversão no próprio preparo
+def test_r11_medida_nova_com_peso_cadastra_conversao(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10)
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "tipo_refeicao": "Almoço",
+            "qtd_alunos": 100,
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 4,
+                "medida_caseira": "Concha",
+                "peso_em_kg": 0.25,
+            }],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 9
+
+    conversoes = client.get(
+        f"/conversoes?item_id={item['id']}", headers=_auth(admin_token)
+    ).json()
+    assert conversoes[0]["medida_caseira"] == "Concha"
+    assert conversoes[0]["peso_em_kg"] == 0.25
+
+
+# R12 — Peso inválido não altera o estoque
+def test_r12_medida_com_peso_invalido(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10)
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "tipo_refeicao": "Almoço",
+            "qtd_alunos": 100,
+            "itens": [{
+                "item_id": item["id"],
+                "quantidade": 4,
+                "medida_caseira": "Concha",
+                "peso_em_kg": 0,
+            }],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 400
+    assert _saldo(client, admin_token, item["id"]) == 10

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, fetchJson } from '../api';
 import { useAuth } from '../auth-context';
@@ -8,16 +8,20 @@ import { SLOTS_REFEICAO } from './admin/constants';
 import './PainelCozinha.css';
 
 type SlotRefeicao = (typeof SLOTS_REFEICAO)[number];
+type OrigemIngrediente = 'receita' | 'adicionado';
 
 interface IngredienteRascunho {
   itemId: number;
   nome: string;
-  quantidadeOriginal: number;
+  quantidadeBase: number;
+  quantidadeEsperada: number;
   quantidadeAtual: number;
   medidaOriginal: string;
   medidaSelecionada: string;
   justificativa: string;
   conversoes: Conversao[];
+  origem: OrigemIngrediente;
+  removido: boolean;
 }
 
 function formatarDataLocal(data: Date): string {
@@ -65,7 +69,13 @@ function medidaInicial(receita: ReceitaItem, conversoes: Conversao[]): string {
 }
 
 function itemTemDivergencia(item: IngredienteRascunho): boolean {
-  return item.quantidadeAtual !== item.quantidadeOriginal;
+  return item.origem === 'adicionado'
+    || item.removido
+    || item.quantidadeAtual !== item.quantidadeEsperada;
+}
+
+function quantidadeAlunosValida(quantidade: number): boolean {
+  return Number.isInteger(quantidade) && quantidade > 0;
 }
 
 export default function PainelCozinha() {
@@ -84,7 +94,15 @@ export default function PainelCozinha() {
   const [salvando, setSalvando] = useState(false);
   const [slotConfirmado, setSlotConfirmado] = useState<number | null>(null);
   const [saldos, setSaldos] = useState<Record<number, Item>>({});
+  const [itensCatalogo, setItensCatalogo] = useState<Item[]>([]);
+  const [itemParaAdicionar, setItemParaAdicionar] = useState('');
+  const [carregandoAdicao, setCarregandoAdicao] = useState(false);
+  const [receitaCarregada, setReceitaCarregada] = useState(false);
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const receitaRequestId = useRef(0);
+  const dialogRef = useRef<HTMLElement>(null);
+  const botaoFecharRef = useRef<HTMLButtonElement>(null);
+  const retornoFocoRef = useRef<HTMLElement | null>(null);
 
   const carregarPlanejamento = useCallback(async (data: string) => {
     setCarregando(true);
@@ -116,7 +134,13 @@ export default function PainelCozinha() {
     return () => { cancelado = true; };
   }, [dataReferencia]);
 
-  const abrirReceita = async (entrada: PlanejamentoEntrada) => {
+  useEffect(() => {
+    if (!entradaSelecionada) return;
+    const focoInicial = window.setTimeout(() => botaoFecharRef.current?.focus(), 0);
+    return () => window.clearTimeout(focoInicial);
+  }, [entradaSelecionada]);
+
+  const carregarReceita = async (entrada: PlanejamentoEntrada, alunos: number) => {
     const requestId = receitaRequestId.current + 1;
     receitaRequestId.current = requestId;
     setEntradaSelecionada(entrada);
@@ -125,26 +149,38 @@ export default function PainelCozinha() {
     setErroReceita(null);
     setErroEnvio(null);
     setCarregandoReceita(true);
+    setReceitaCarregada(false);
 
     try {
-      const receita = await fetchJson<ReceitaItem[]>(`/cardapio/${entrada.cardapio_item_id}/receita`);
+      const [receita, catalogo] = await Promise.all([
+        fetchJson<ReceitaItem[]>(`/cardapio/${entrada.cardapio_item_id}/receita`),
+        fetchJson<Item[]>('/itens'),
+      ]);
       const ingredientesComConversao = await Promise.all(
         receita.map(async (item) => {
           const conversoes = await fetchJson<Conversao[]>(`/conversoes?item_id=${item.item_id}`);
+          const quantidadeEsperada = item.quantidade * alunos;
           return {
             itemId: item.item_id,
             nome: item.item_nome ?? `Item ${item.item_id}`,
-            quantidadeOriginal: item.quantidade,
-            quantidadeAtual: item.quantidade,
+            quantidadeBase: item.quantidade,
+            quantidadeEsperada,
+            quantidadeAtual: quantidadeEsperada,
             medidaOriginal: item.medida_caseira,
             medidaSelecionada: medidaInicial(item, conversoes),
             justificativa: '',
             conversoes,
+            origem: 'receita' as const,
+            removido: false,
           } satisfies IngredienteRascunho;
         }),
       );
 
-      if (receitaRequestId.current === requestId) setIngredientes(ingredientesComConversao);
+      if (receitaRequestId.current === requestId) {
+        setIngredientes(ingredientesComConversao);
+        setItensCatalogo(catalogo);
+        setReceitaCarregada(true);
+      }
     } catch (erro) {
       if (receitaRequestId.current === requestId) {
         setErroReceita(mensagemDeErro(erro, 'Não foi possível carregar a receita. Tente novamente.'));
@@ -154,10 +190,64 @@ export default function PainelCozinha() {
     }
   };
 
+  const abrirEditor = (entrada: PlanejamentoEntrada, origem?: HTMLElement) => {
+    receitaRequestId.current += 1;
+    retornoFocoRef.current = origem ?? null;
+    setEntradaSelecionada(entrada);
+    setIngredientes([]);
+    setQtdAlunos(0);
+    setItemParaAdicionar('');
+    setErroReceita(null);
+    setErroEnvio(null);
+    setReceitaCarregada(false);
+    setConfirmarDescarte(false);
+  };
+
+  const rascunhoTemAlteracoes = (): boolean => {
+    return qtdAlunos > 0 && (ingredientes.length > 0 || itemParaAdicionar !== '');
+  };
+
+  const fecharEditorAgora = () => {
+    setEntradaSelecionada(null);
+    setIngredientes([]);
+    setQtdAlunos(0);
+    setItemParaAdicionar('');
+    setErroReceita(null);
+    setErroEnvio(null);
+    setReceitaCarregada(false);
+    setConfirmarDescarte(false);
+    window.setTimeout(() => retornoFocoRef.current?.focus(), 0);
+  };
+
   const fecharEditor = () => {
-    if (!salvando) {
-      setEntradaSelecionada(null);
-      setErroEnvio(null);
+    if (salvando) return;
+    if (rascunhoTemAlteracoes()) {
+      setConfirmarDescarte(true);
+      return;
+    }
+    fecharEditorAgora();
+  };
+
+  const handleDialogKeyDown = (evento: KeyboardEvent<HTMLElement>) => {
+    if (evento.key === 'Escape') {
+      evento.preventDefault();
+      fecharEditor();
+      return;
+    }
+    if (evento.key !== 'Tab') return;
+
+    const focoPossivel = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    );
+    if (!focoPossivel || focoPossivel.length === 0) return;
+    const primeiro = focoPossivel[0];
+    const ultimo = focoPossivel[focoPossivel.length - 1];
+    if (evento.shiftKey && document.activeElement === primeiro) {
+      evento.preventDefault();
+      ultimo.focus();
+    } else if (!evento.shiftKey && document.activeElement === ultimo) {
+      evento.preventDefault();
+      primeiro.focus();
     }
   };
 
@@ -180,6 +270,86 @@ export default function PainelCozinha() {
     )));
   };
 
+  const atualizarQtdAlunos = (valor: string) => {
+    const quantidade = valor === '' ? 0 : Number(valor);
+    setQtdAlunos(quantidade);
+    setErroEnvio(null);
+
+    if (!quantidadeAlunosValida(quantidade)) {
+      receitaRequestId.current += 1;
+      setIngredientes([]);
+      setReceitaCarregada(false);
+      setErroReceita(null);
+      return;
+    }
+
+    if (entradaSelecionada && !receitaCarregada) {
+      void carregarReceita(entradaSelecionada, quantidade);
+      return;
+    }
+
+    setIngredientes((atuais) => atuais.map((item) => {
+      if (item.origem !== 'receita') return item;
+      const quantidadeEsperada = item.quantidadeBase * quantidade;
+      return {
+        ...item,
+        quantidadeEsperada,
+        quantidadeAtual: item.removido ? 0 : quantidadeEsperada,
+        justificativa: item.removido ? item.justificativa : '',
+      };
+    }));
+  };
+
+  const alternarRemocao = (index: number) => {
+    setIngredientes((atuais) => atuais.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const removido = !item.removido;
+      return {
+        ...item,
+        removido,
+        quantidadeAtual: removido ? 0 : item.origem === 'receita' ? item.quantidadeEsperada : 0,
+        justificativa: removido ? '' : item.origem === 'adicionado' ? item.justificativa : '',
+      };
+    }));
+  };
+
+  const adicionarIngrediente = async () => {
+    const itemId = Number(itemParaAdicionar);
+    const item = itensCatalogo.find((catalogoItem) => catalogoItem.id === itemId);
+    if (!item || ingredientes.some((ingrediente) => ingrediente.itemId === itemId)) return;
+
+    setCarregandoAdicao(true);
+    setErroEnvio(null);
+    try {
+      const conversoes = await fetchJson<Conversao[]>(`/conversoes?item_id=${item.id}`);
+      if (conversoes.length === 0) {
+        setErroEnvio(`Não é possível adicionar ${item.nome}: solicite ao admin uma conversão cadastrada antes de incluir o ingrediente.`);
+        return;
+      }
+      setIngredientes((atuais) => ([
+        ...atuais,
+        {
+          itemId: item.id,
+          nome: item.nome,
+          quantidadeBase: 0,
+          quantidadeEsperada: 0,
+          quantidadeAtual: 0,
+          medidaOriginal: '',
+          medidaSelecionada: conversoes[0].medida_caseira,
+          justificativa: '',
+          conversoes,
+          origem: 'adicionado',
+          removido: false,
+        },
+      ]));
+      setItemParaAdicionar('');
+    } catch (erro) {
+      setErroEnvio(mensagemDeErro(erro, 'Não foi possível carregar as conversões deste ingrediente.'));
+    } finally {
+      setCarregandoAdicao(false);
+    }
+  };
+
   const relerDepoisDaTentativa = async (): Promise<boolean> => {
     try {
       const [novoPlanejamento, novosItens] = await Promise.all([
@@ -198,9 +368,10 @@ export default function PainelCozinha() {
     evento.preventDefault();
     if (!entradaSelecionada || salvando) return;
 
-    const qtdValida = Number.isInteger(qtdAlunos) && qtdAlunos > 0;
+    const qtdValida = quantidadeAlunosValida(qtdAlunos);
     const ingredientesValidos = ingredientes.length > 0 && ingredientes.every(
       (item) => item.quantidadeAtual >= 0 && Number.isFinite(item.quantidadeAtual)
+        && (item.removido || item.origem === 'receita' || item.quantidadeAtual > 0)
         && item.medidaSelecionada !== '' && item.conversoes.length > 0,
     );
     const justificativasValidas = ingredientes.every(
@@ -240,8 +411,7 @@ export default function PainelCozinha() {
       }
 
       setSlotConfirmado(entradaSelecionada.id);
-      setEntradaSelecionada(null);
-      setIngredientes([]);
+      fecharEditorAgora();
     } catch (erro) {
       await relerDepoisDaTentativa();
       setErroEnvio(mensagemDeErro(erro, 'Não foi possível registrar a refeição. O rascunho foi preservado.'));
@@ -332,7 +502,7 @@ export default function PainelCozinha() {
                       <h3>{entrada.nome_refeicao}</h3>
                       <p>Vigente desde {dataLegivel(entrada.data_inicio_vigencia)}</p>
                       {confirmado && <p className="mensagem-sucesso">Refeição registrada e estoque atualizado.</p>}
-                      <button type="button" className="botao-abrir" onClick={() => void abrirReceita(entrada)} disabled={salvando}>
+                      <button type="button" className="botao-abrir" onClick={(evento) => abrirEditor(entrada, evento.currentTarget)} disabled={salvando}>
                         Revisar refeição
                       </button>
                     </>
@@ -351,26 +521,25 @@ export default function PainelCozinha() {
 
       {entradaSelecionada && (
         <div className="modal-overlay">
-          <section className="modal-content" role="dialog" aria-modal="true" aria-labelledby="editor-titulo">
+          <section
+            ref={dialogRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editor-titulo"
+            onKeyDown={handleDialogKeyDown}
+          >
             <header className="modal-header">
               <div>
                 <p className="cozinha-eyebrow">{entradaSelecionada.tipo_refeicao}</p>
                 <h2 id="editor-titulo">{entradaSelecionada.tipo_refeicao} — {entradaSelecionada.nome_refeicao}</h2>
               </div>
-              <button type="button" className="botao-fechar" onClick={fecharEditor} disabled={salvando}>Fechar</button>
+              <button ref={botaoFecharRef} type="button" className="botao-fechar" onClick={fecharEditor} disabled={salvando}>Fechar</button>
             </header>
 
-            {carregandoReceita && <p className="estado-loading" role="status" aria-live="polite">Carregando receita…</p>}
-            {erroReceita && (
-              <div className="estado-erro" role="alert">
-                <p>{erroReceita}</p>
-                <button type="button" className="botao-secundario" onClick={() => void abrirReceita(entradaSelecionada)}>Tentar novamente</button>
-              </div>
-            )}
             {erroEnvio && <p className="estado-erro-inline" role="alert">{erroEnvio}</p>}
 
-            {!carregandoReceita && !erroReceita && (
-              <form onSubmit={handleFinalizar}>
+            <form onSubmit={handleFinalizar}>
                 <div className="form-grid">
                   <div className="campo-formulario campo-alunos">
                     <label htmlFor="qtd-alunos">Quantos alunos foram atendidos?</label>
@@ -380,80 +549,137 @@ export default function PainelCozinha() {
                       min="1"
                       step="1"
                       value={qtdAlunos || ''}
-                      onChange={(evento) => setQtdAlunos(Number(evento.target.value))}
-                      aria-describedby="ajuda-alunos"
-                    />
-                    <span id="ajuda-alunos" className="campo-ajuda">Informe um número inteiro positivo.</span>
+                       onChange={(evento) => atualizarQtdAlunos(evento.target.value)}
+                       aria-describedby="ajuda-alunos"
+                     />
+                    <span id="ajuda-alunos" className="campo-ajuda">Informe um número inteiro positivo para carregar a receita.</span>
                   </div>
                 </div>
 
-                <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
-                <div className="lista-ingredientes">
-                  {ingredientes.map((item, index) => {
-                    const semConversao = item.conversoes.length === 0;
-                    return (
-                      <div key={`${item.itemId}-${index}`} className="ingrediente-item">
-                        <div className="ingrediente-detalhe">
-                          <h3>{item.nome}</h3>
-                          <p>Receita original: {item.quantidadeOriginal} {item.medidaOriginal}</p>
-                        </div>
-                        <div className="ingrediente-controles">
-                          <label htmlFor={`quantidade-${item.itemId}`}>Quantidade atual</label>
-                          <input
-                            id={`quantidade-${item.itemId}`}
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.quantidadeAtual}
-                            onChange={(evento) => atualizarQuantidade(index, evento.target.value)}
-                          />
-                          <label htmlFor={`medida-${item.itemId}`}>Medida cadastrada</label>
-                          <select
-                            id={`medida-${item.itemId}`}
-                            value={item.medidaSelecionada}
-                            onChange={(evento) => atualizarMedida(index, evento)}
-                            disabled={semConversao}
-                            aria-invalid={semConversao || item.medidaSelecionada === ''}
-                          >
-                            <option value="">Selecione uma medida</option>
-                            {item.conversoes.map((conversao) => (
-                              <option key={conversao.id} value={conversao.medida_caseira}>{conversao.medida_caseira}</option>
-                            ))}
-                          </select>
-                          {semConversao && <p className="campo-erro">Nenhuma conversão cadastrada. Solicite ao admin o cadastro em Itens/Conversões.</p>}
-                          {itemTemDivergencia(item) && (
-                            <div className="justificativa-controle">
-                              <label htmlFor={`justificativa-${item.itemId}`}>
-                                Justificativa da alteração
-                              </label>
-                              <textarea
-                                id={`justificativa-${item.itemId}`}
-                                value={item.justificativa}
-                                onChange={(evento) => atualizarJustificativa(index, evento.target.value)}
-                                aria-describedby={`ajuda-justificativa-${item.itemId}`}
-                                aria-invalid={item.justificativa.trim() === ''}
-                                rows={3}
-                                placeholder="Explique a divergência desta quantidade"
-                              />
-                              <span id={`ajuda-justificativa-${item.itemId}`} className="campo-ajuda">
-                                Obrigatória quando a quantidade divergir da receita original.
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        {saldos[item.itemId] && <p className="saldo-atual">Saldo após a última leitura: {saldos[item.itemId].saldo_atual} {saldos[item.itemId].unidade_interna}</p>}
+                {!quantidadeAlunosValida(qtdAlunos) && (
+                  <p className="estado-vazio">Informe primeiro a quantidade de alunos para carregar a receita.</p>
+                )}
+                {quantidadeAlunosValida(qtdAlunos) && carregandoReceita && <p className="estado-loading" role="status" aria-live="polite">Carregando receita…</p>}
+                {quantidadeAlunosValida(qtdAlunos) && erroReceita && (
+                  <div className="estado-erro" role="alert">
+                    <p>{erroReceita}</p>
+                    <button type="button" className="botao-secundario" onClick={() => void carregarReceita(entradaSelecionada, qtdAlunos)}>Tentar novamente</button>
+                  </div>
+                )}
+                {quantidadeAlunosValida(qtdAlunos) && receitaCarregada && !carregandoReceita && !erroReceita && (
+                  <>
+                    <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
+                    <div className="adicionar-ingrediente">
+                      <label htmlFor="item-para-adicionar">Adicionar ingrediente</label>
+                      <div className="adicionar-ingrediente-controles">
+                        <select
+                          id="item-para-adicionar"
+                          value={itemParaAdicionar}
+                          onChange={(evento) => setItemParaAdicionar(evento.target.value)}
+                          disabled={carregandoAdicao || salvando}
+                        >
+                          <option value="">Selecione um item cadastrado</option>
+                          {itensCatalogo
+                            .filter((catalogoItem) => !ingredientes.some((ingrediente) => ingrediente.itemId === catalogoItem.id))
+                            .map((catalogoItem) => <option key={catalogoItem.id} value={catalogoItem.id}>{catalogoItem.nome}</option>)}
+                        </select>
+                        <button type="button" className="botao-secundario" onClick={() => void adicionarIngrediente()} disabled={!itemParaAdicionar || carregandoAdicao || salvando}>
+                          {carregandoAdicao ? 'Carregando…' : 'Adicionar'}
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                    <div className="lista-ingredientes">
+                      {ingredientes.map((item, index) => {
+                        const semConversao = item.conversoes.length === 0;
+                        const justificativaObrigatoria = itemTemDivergencia(item);
+                        return (
+                          <div key={`${item.itemId}-${index}`} className={`ingrediente-item ${item.removido ? 'ingrediente-removido' : ''}`}>
+                            <div className="ingrediente-detalhe">
+                              <div className="ingrediente-titulo-linha">
+                                <h3>{item.nome}</h3>
+                                {item.removido && <span className="estado-badge">Removido</span>}
+                                {item.origem === 'adicionado' && !item.removido && <span className="estado-badge">Adicionado</span>}
+                              </div>
+                              {item.origem === 'receita' ? (
+                                <>
+                                  <p>Quantidade-base: {item.quantidadeBase} {item.medidaOriginal}</p>
+                                  <p>Esperada para {qtdAlunos} alunos: {item.quantidadeEsperada} {item.medidaOriginal}</p>
+                                </>
+                              ) : <p>Ingrediente fora da receita planejada.</p>}
+                            </div>
+                            <div className="ingrediente-controles">
+                              <label htmlFor={`quantidade-${item.itemId}`}>Quantidade final</label>
+                              <input
+                                id={`quantidade-${item.itemId}`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.quantidadeAtual}
+                                onChange={(evento) => atualizarQuantidade(index, evento.target.value)}
+                                aria-describedby={`ajuda-quantidade-${item.itemId}`}
+                              />
+                              <span id={`ajuda-quantidade-${item.itemId}`} className="campo-ajuda">Esta é a quantidade enviada para a baixa.</span>
+                              <label htmlFor={`medida-${item.itemId}`}>Medida cadastrada</label>
+                              <select
+                                id={`medida-${item.itemId}`}
+                                value={item.medidaSelecionada}
+                                onChange={(evento) => atualizarMedida(index, evento)}
+                                disabled={semConversao || salvando}
+                                aria-invalid={semConversao || item.medidaSelecionada === ''}
+                              >
+                                <option value="">Selecione uma medida</option>
+                                {item.conversoes.map((conversao) => (
+                                  <option key={conversao.id} value={conversao.medida_caseira}>{conversao.medida_caseira}</option>
+                                ))}
+                              </select>
+                              {semConversao && <p className="campo-erro">Nenhuma conversão cadastrada. Solicite ao admin o cadastro em Itens/Conversões.</p>}
+                              {justificativaObrigatoria && (
+                                <div className="justificativa-controle">
+                                  <label htmlFor={`justificativa-${item.itemId}`}>
+                                    {item.removido ? 'Justificativa da remoção' : 'Justificativa da alteração'}
+                                  </label>
+                                  <textarea
+                                    id={`justificativa-${item.itemId}`}
+                                    value={item.justificativa}
+                                    onChange={(evento) => atualizarJustificativa(index, evento.target.value)}
+                                    aria-describedby={`ajuda-justificativa-${item.itemId}`}
+                                    aria-invalid={item.justificativa.trim() === ''}
+                                    rows={3}
+                                    placeholder="Explique a divergência desta quantidade"
+                                  />
+                                  <span id={`ajuda-justificativa-${item.itemId}`} className="campo-ajuda">
+                                    Obrigatória para alterações, inclusões e remoções.
+                                  </span>
+                                </div>
+                              )}
+                              <button type="button" className="botao-secundario botao-remover" onClick={() => alternarRemocao(index)} disabled={salvando}>
+                                {item.removido ? 'Restaurar ingrediente' : 'Remover ingrediente'}
+                              </button>
+                            </div>
+                            {saldos[item.itemId] && <p className="saldo-atual">Saldo após a última leitura: {saldos[item.itemId].saldo_atual} {saldos[item.itemId].unidade_interna}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
 
                 <footer className="modal-acoes">
                   <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
-                  <button type="submit" className="botao-primario" disabled={salvando || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
+                  <button type="submit" className="botao-primario" disabled={salvando || !quantidadeAlunosValida(qtdAlunos) || !receitaCarregada || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
                     {salvando ? 'Registrando…' : 'Confirmar refeição e dar baixa'}
                   </button>
                 </footer>
               </form>
+            {confirmarDescarte && (
+              <div className="confirmacao-descarte" role="alertdialog" aria-modal="true" aria-labelledby="descarte-titulo">
+                <h3 id="descarte-titulo">Descartar alterações?</h3>
+                <p>O rascunho e as justificativas preenchidas serão perdidos.</p>
+                <div className="confirmacao-acoes">
+                  <button type="button" className="botao-secundario" onClick={() => setConfirmarDescarte(false)}>Continuar editando</button>
+                  <button type="button" className="botao-primario" onClick={fecharEditorAgora}>Descartar</button>
+                </div>
+              </div>
             )}
           </section>
         </div>
