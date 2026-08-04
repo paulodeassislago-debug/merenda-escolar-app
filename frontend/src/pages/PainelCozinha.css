@@ -341,6 +341,29 @@ button:disabled {
   max-width: 320px;
 }
 
+.adicionar-ingrediente {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 24px 0 16px;
+  padding: 16px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--fundo);
+}
+
+.adicionar-ingrediente > label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.adicionar-ingrediente-controles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .campo-ajuda {
   color: var(--texto-suave);
 }
@@ -368,6 +391,22 @@ button:disabled {
   font-weight: 600;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+
+.ingrediente-titulo-linha {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ingrediente-removido {
+  border-color: var(--erro);
+  background: var(--erro-fundo);
+}
+
+.botao-remover {
+  margin-top: 8px;
 }
 
 .ingrediente-detalhe p,
@@ -407,6 +446,36 @@ button:disabled {
   border-top: 1px solid var(--borda);
 }
 
+.confirmacao-descarte {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--amarelo);
+  border-radius: var(--raio);
+  background: var(--fundo);
+}
+
+.confirmacao-descarte h3,
+.confirmacao-descarte p {
+  margin: 0;
+}
+
+.confirmacao-descarte h3 {
+  color: var(--verde-escuro);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.confirmacao-acoes {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 1023px) {
   .slots-grade {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -436,11 +505,19 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .adicionar-ingrediente-controles {
+    grid-template-columns: 1fr;
+  }
+
   .botao-primario,
   .botao-secundario,
   .botao-fechar,
   .cozinha-data-controle button {
     width: 100%;
+  }
+
+  .confirmacao-acoes {
+    flex-direction: column;
   }
 
   .modal-content {

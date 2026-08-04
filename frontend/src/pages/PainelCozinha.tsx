@@ -100,35 +100,44 @@ export default function PainelCozinha() {
   const [receitaCarregada, setReceitaCarregada] = useState(false);
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const receitaRequestId = useRef(0);
+  const planejamentoRequestId = useRef(0);
   const dialogRef = useRef<HTMLElement>(null);
   const botaoFecharRef = useRef<HTMLButtonElement>(null);
   const retornoFocoRef = useRef<HTMLElement | null>(null);
 
   const carregarPlanejamento = useCallback(async (data: string) => {
+    const requestId = planejamentoRequestId.current + 1;
+    planejamentoRequestId.current = requestId;
     setCarregando(true);
     setErroCarregamento(null);
     try {
       const dados = await fetchJson<PlanejamentoEntrada[]>(`/planejamento?data=${data}`);
-      setPlanejamento(dados);
+      if (planejamentoRequestId.current === requestId) setPlanejamento(dados);
     } catch (erro) {
-      setErroCarregamento(mensagemDeErro(erro, 'Não foi possível carregar os dados. Tente novamente.'));
+      if (planejamentoRequestId.current === requestId) {
+        setErroCarregamento(mensagemDeErro(erro, 'Não foi possível carregar os dados. Tente novamente.'));
+      }
     } finally {
-      setCarregando(false);
+      if (planejamentoRequestId.current === requestId) setCarregando(false);
     }
   }, []);
 
   useEffect(() => {
     let cancelado = false;
+    const requestId = planejamentoRequestId.current + 1;
+    planejamentoRequestId.current = requestId;
 
     void fetchJson<PlanejamentoEntrada[]>(`/planejamento?data=${dataReferencia}`)
       .then((dados) => {
-        if (!cancelado) setPlanejamento(dados);
+        if (!cancelado && planejamentoRequestId.current === requestId) setPlanejamento(dados);
       })
       .catch((erro: unknown) => {
-        if (!cancelado) setErroCarregamento(mensagemDeErro(erro, 'Não foi possível carregar os dados. Tente novamente.'));
+        if (!cancelado && planejamentoRequestId.current === requestId) {
+          setErroCarregamento(mensagemDeErro(erro, 'Não foi possível carregar os dados. Tente novamente.'));
+        }
       })
       .finally(() => {
-        if (!cancelado) setCarregando(false);
+        if (!cancelado && planejamentoRequestId.current === requestId) setCarregando(false);
       });
 
     return () => { cancelado = true; };
@@ -537,7 +546,14 @@ export default function PainelCozinha() {
               <button ref={botaoFecharRef} type="button" className="botao-fechar" onClick={fecharEditor} disabled={salvando}>Fechar</button>
             </header>
 
-            {erroEnvio && <p className="estado-erro-inline" role="alert">{erroEnvio}</p>}
+            {erroEnvio && (
+              <div className="estado-erro-inline" role="alert">
+                <p>{erroEnvio}</p>
+                {erroEnvio === 'Sua sessão expirou. Entre novamente.' && (
+                  <button type="button" className="botao-secundario" onClick={handleSessaoExpirada}>Entrar novamente</button>
+                )}
+              </div>
+            )}
 
             <form onSubmit={handleFinalizar}>
                 <div className="form-grid">
@@ -549,8 +565,9 @@ export default function PainelCozinha() {
                       min="1"
                       step="1"
                       value={qtdAlunos || ''}
-                       onChange={(evento) => atualizarQtdAlunos(evento.target.value)}
-                       aria-describedby="ajuda-alunos"
+                      onChange={(evento) => atualizarQtdAlunos(evento.target.value)}
+                      disabled={salvando}
+                      aria-describedby="ajuda-alunos"
                      />
                     <span id="ajuda-alunos" className="campo-ajuda">Informe um número inteiro positivo para carregar a receita.</span>
                   </div>
@@ -563,9 +580,14 @@ export default function PainelCozinha() {
                 {quantidadeAlunosValida(qtdAlunos) && erroReceita && (
                   <div className="estado-erro" role="alert">
                     <p>{erroReceita}</p>
-                    <button type="button" className="botao-secundario" onClick={() => void carregarReceita(entradaSelecionada, qtdAlunos)}>Tentar novamente</button>
+                    {erroReceita === 'Sua sessão expirou. Entre novamente.' ? (
+                      <button type="button" className="botao-secundario" onClick={handleSessaoExpirada}>Entrar novamente</button>
+                    ) : (
+                      <button type="button" className="botao-secundario" onClick={() => void carregarReceita(entradaSelecionada, qtdAlunos)}>Tentar novamente</button>
+                    )}
                   </div>
                 )}
+                {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
                 {quantidadeAlunosValida(qtdAlunos) && receitaCarregada && !carregandoReceita && !erroReceita && (
                   <>
                     <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
@@ -616,6 +638,7 @@ export default function PainelCozinha() {
                                 step="0.01"
                                 value={item.quantidadeAtual}
                                 onChange={(evento) => atualizarQuantidade(index, evento.target.value)}
+                                disabled={salvando || item.removido}
                                 aria-describedby={`ajuda-quantidade-${item.itemId}`}
                               />
                               <span id={`ajuda-quantidade-${item.itemId}`} className="campo-ajuda">Esta é a quantidade enviada para a baixa.</span>
