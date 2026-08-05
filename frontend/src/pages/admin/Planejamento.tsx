@@ -1,12 +1,13 @@
 // src/pages/admin/Planejamento.tsx — grade semanal com upsert (F10, D-09) + projeção (D-17/D-19)
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type {
   PlanejamentoEntrada,
   CardapioItem,
   ProjecaoSemana,
+  PlanejamentoAviso,
 } from '../../types';
 import { DIAS_SEMANA, SLOTS_REFEICAO } from './constants';
 import './Planejamento.css';
@@ -53,6 +54,25 @@ function buildSelecoes(entradasData: PlanejamentoEntrada[]): Record<string, numb
   return mapa;
 }
 
+/** Formata número pt-BR com até 2 casas (projeção — D-19). */
+function fmtNumero(v: number | null): string {
+  if (v === null) return '—';
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+/** Avisos derivados da projeção da semana — fallback quando o POST não retorna avisos (D-18/D-19). */
+function derivarAvisos(proj: ProjecaoSemana | null): PlanejamentoAviso[] {
+  if (!proj?.configurado) return [];
+  const avisos: PlanejamentoAviso[] = [];
+  for (const item of proj.itens) {
+    if (!item.avaliavel || item.saldo_projetado === null) continue;
+    if (item.saldo_projetado < 0) {
+      avisos.push({ item_id: item.item_id, nome: item.nome, faltando: -item.saldo_projetado });
+    }
+  }
+  return avisos;
+}
+
 // --- Componente ---
 
 export default function Planejamento() {
@@ -67,6 +87,10 @@ export default function Planejamento() {
 
   // Projeção cumulativa da semana (D-17/D-19) — falha isolada nunca derruba a grade
   const [projecao, setProjecao] = useState<ProjecaoSemana | null>(null);
+  const [erroProjecao, setErroProjecao] = useState(false);
+  const [avisos, setAvisos] = useState<PlanejamentoAviso[]>([]);
+  const projecaoRef = useRef<ProjecaoSemana | null>(null);
+  const painelRef = useRef<HTMLDetailsElement>(null);
 
   const segunda = segundaDaSemana(semanaRef);
   const domingo = new Date(segunda);
@@ -79,10 +103,14 @@ export default function Planejamento() {
         '/planejamento/projecao?data=' + formatISO(seg),
       );
       if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return; // semana mudou no meio
+      projecaoRef.current = proj;
       setProjecao(proj);
+      setErroProjecao(false);
     } catch {
       if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return;
+      projecaoRef.current = null;
       setProjecao(null);
+      setErroProjecao(true);
     }
   }, [semanaRef]);
 
@@ -132,6 +160,7 @@ export default function Planejamento() {
           setPratos(pratosData);
           setSelecoes(buildSelecoes(entradasData));
           setSucesso(false);
+          setAvisos([]); // avisos são do save da semana corrente (D-18/D-19)
           setCarregando(false);
         }
       } catch (e) {
@@ -160,6 +189,10 @@ export default function Planejamento() {
     setSalvando(true);
     setErro(null);
     setSucesso(false);
+    setAvisos([]);
+
+    // Avisos aditivos do POST /planejamento (D-18) — não bloqueiam o save
+    const avisosColetados: PlanejamentoAviso[] = [];
 
     // Constrói mapa vigente atual para comparação
     const mapaVigente: Record<string, PlanejamentoEntrada> = {};
@@ -180,7 +213,7 @@ export default function Planejamento() {
 
           if (novoValor !== null && novoValor !== undefined) {
             // Upsert: POST /planejamento
-            await fetchJson('/planejamento', {
+            const resposta = await fetchJson<{ avisos?: PlanejamentoAviso[] }>('/planejamento', {
               method: 'POST',
               body: JSON.stringify({
                 cardapio_item_id: novoValor,
@@ -189,6 +222,9 @@ export default function Planejamento() {
                 data_inicio_vigencia: formatISO(segundaDaSemana(semanaRef)),
               }),
             });
+            if (resposta.avisos && resposta.avisos.length > 0) {
+              avisosColetados.push(...resposta.avisos);
+            }
           } else if (entradaVigente) {
             // Limpar slot: DELETE /planejamento/{id}
             await fetchJson(`/planejamento/${entradaVigente.id}`, {
@@ -201,12 +237,25 @@ export default function Planejamento() {
       // Sucesso: refetch para provar persistência
       await carregarDados();
       setSucesso(true);
+      setAvisos(avisosColetados.length > 0 ? avisosColetados : derivarAvisos(projecaoRef.current));
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Falha ao salvar o planejamento. Tente novamente.');
       // Refetch para sincronizar estado após falha parcial (slots já salvos)
       await carregarDados();
     } finally {
       setSalvando(false);
+    }
+  };
+
+  /** Unidade oficial do item para os avisos (o POST não a retorna — D-18). */
+  const unidadeDoItem = (itemId: number): string =>
+    projecao?.itens.find((i) => i.item_id === itemId)?.unidade_oficial ?? '';
+
+  /** Abre o painel de projeção e rola até ele (D-19). */
+  const abrirProjecao = () => {
+    if (painelRef.current) {
+      painelRef.current.open = true;
+      painelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -354,6 +403,123 @@ export default function Planejamento() {
 
           {/* Feedback de sucesso */}
           {sucesso && <p className="planejamento-sucesso">Planejamento salvo.</p>}
+
+          {/* Avisos não-bloqueantes do save (D-18/D-19) */}
+          {avisos.length > 0 && (
+            <div className="banner-aviso" role="status">
+              <p className="banner-aviso-titulo">
+                Atenção: {avisos.length}{' '}
+                {avisos.length === 1
+                  ? 'item pode faltar nas refeições planejadas.'
+                  : 'itens podem faltar nas refeições planejadas.'}
+              </p>
+              <ul className="banner-aviso-lista">
+                {avisos.map((a) => (
+                  <li key={a.item_id}>
+                    {a.nome} −
+                    {[fmtNumero(a.faltando), unidadeDoItem(a.item_id)].filter(Boolean).join(' ')}
+                  </li>
+                ))}
+              </ul>
+              <div className="banner-aviso-acoes">
+                <button type="button" className="btn-secundario" onClick={abrirProjecao}>
+                  Ver projeção
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Projeção da semana (D-19): painel colapsável, nunca bloqueia */}
+          <details className="painel-projecao" ref={painelRef}>
+            <summary>Projeção da semana</summary>
+            {erroProjecao ? (
+              <div className="painel-projecao-corpo">
+                <p className="painel-projecao-aviso">
+                  Não foi possível carregar a projeção.{' '}
+                  <button
+                    type="button"
+                    className="btn-secundario"
+                    onClick={() => {
+                      void carregarProjecao(segunda);
+                    }}
+                  >
+                    Tentar novamente
+                  </button>
+                </p>
+              </div>
+            ) : !projecao?.configurado ? (
+              <div className="painel-projecao-corpo">
+                <p className="painel-projecao-aviso">
+                  Configure os alunos por período para ativar a projeção.
+                </p>
+              </div>
+            ) : (
+              <div className="painel-projecao-corpo">
+                <p className="painel-projecao-resumo">
+                  {projecao.resumo.itens_com_ruptura}{' '}
+                  {projecao.resumo.itens_com_ruptura === 1
+                    ? 'item com ruptura prevista'
+                    : 'itens com ruptura prevista'}
+                  {projecao.resumo.itens_nao_avaliaveis > 0 && (
+                    <>
+                      {' · '}
+                      {projecao.resumo.itens_nao_avaliaveis}{' '}
+                      {projecao.resumo.itens_nao_avaliaveis === 1
+                        ? 'item sem conversão cadastrada'
+                        : 'itens sem conversão cadastrada'}
+                    </>
+                  )}
+                </p>
+                <div className="painel-projecao-tabela-container">
+                  <table className="painel-projecao-tabela">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Saldo atual</th>
+                        <th>Consumo projetado</th>
+                        <th>Saldo projetado final</th>
+                        <th>1º dia de ruptura</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projecao.itens.map((item) => (
+                        <tr
+                          key={item.item_id}
+                          className={
+                            item.avaliavel
+                              ? item.primeiro_dia_ruptura !== null
+                                ? 'linha-ruptura'
+                                : 'linha-sobra'
+                              : 'linha-nao-avaliavel'
+                          }
+                        >
+                          <td>{item.nome}</td>
+                          <td>
+                            {fmtNumero(item.saldo_atual)} {item.unidade_oficial}
+                          </td>
+                          <td>
+                            {item.avaliavel
+                              ? `${fmtNumero(item.consumo_semana)} ${item.unidade_oficial}`
+                              : 'não avaliável'}
+                          </td>
+                          <td>
+                            {item.avaliavel
+                              ? `${fmtNumero(item.saldo_projetado)} ${item.unidade_oficial}`
+                              : 'não avaliável'}
+                          </td>
+                          <td>
+                            {item.avaliavel && item.primeiro_dia_ruptura !== null
+                              ? DIAS_SEMANA[item.primeiro_dia_ruptura]
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </details>
 
           {/* CTA de salvar */}
           <div className="planejamento-acoes">
