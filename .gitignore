@@ -1,4 +1,5 @@
 backend/merenda.db
+backend/merenda.db.bak-*
 __pycache__/
 *.pyc
 node_modules/
