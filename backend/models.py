@@ -41,6 +41,24 @@ class Item(Base):
     saldo_atual = Column(Float, default=0.0)
     unidade_interna = Column(String, default="KG")
     fator_conversao = Column(Float, default=1.0)
+    limiar = Column(Float, nullable=False, default=5.0)
+
+
+class Fornecedor(Base):
+    __tablename__ = "fornecedores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, nullable=False, index=True)
+    cnpj = Column(String, nullable=True)
+
+
+class AlunosPorPeriodo(Base):
+    __tablename__ = "alunos_por_periodo"
+
+    periodo = Column(String, primary_key=True)
+    qtd = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
+    updated_by = Column(Integer, ForeignKey("usuarios.id"))
 
 
 class Conversao(Base):
@@ -108,6 +126,11 @@ class Entrega(Base):
         DateTime, default=datetime.datetime.now, nullable=False
     )
     id_usuario = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    origem = Column(String, nullable=False, default="manual")
+    data_entrega = Column(Date, nullable=True)
+    fornecedor_id = Column(Integer, ForeignKey("fornecedores.id"), nullable=True)
+    nota_numero = Column(String, nullable=True)
+    observacoes = Column(Text, nullable=True)
 
 
 class ItemEntrega(Base):

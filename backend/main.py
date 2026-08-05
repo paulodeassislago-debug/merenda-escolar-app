@@ -10,9 +10,12 @@ import models
 import schemas
 from config import CORS_ORIGINS
 from database import engine, SessionLocal
+from migracao import migrar
 
 # Cria o banco e as tabelas automaticamente se não existirem
 models.Base.metadata.create_all(bind=engine)
+# Aplica colunas novas em tabelas existentes (idempotente, sem Alembic)
+migrar(engine)
 
 app = FastAPI(title="Sistema de Gestão da Cozinha Escolar - PNAE")
 
