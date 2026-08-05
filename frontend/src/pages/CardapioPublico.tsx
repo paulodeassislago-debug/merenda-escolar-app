@@ -33,6 +33,15 @@ function formatarDataHoje(): string {
 // Normaliza a resposta esparsa para os quatro slots na ordem operacional fixa
 // (D-07-05, D-07-06): slots omitidos pela API viram prato nulo com ingredientes vazios.
 function normalizarQuatroSlots(resposta: RefeicaoPublica[]): RefeicaoPublica[] {
+  // Guarda de formato: payload não-array (ex.: {"detail": ...} com 200) não pode
+  // derrubar o render — vira grid completo de slots "A definir" (WR-02).
+  if (!Array.isArray(resposta)) {
+    return SLOTS_REFEICAO.map((slot) => ({
+      tipo_refeicao: slot,
+      nome_refeicao: null,
+      ingredientes: [],
+    }));
+  }
   const porTipo = new Map(resposta.map((refeicao) => [refeicao.tipo_refeicao, refeicao]));
   return SLOTS_REFEICAO.map((slot) => {
     const encontrada = porTipo.get(slot);
@@ -53,7 +62,7 @@ export default function CardapioPublico() {
     setErro(null);
     setRefeicoes([]);
     fetchJson<RefeicaoPublica[]>('/publico/cardapio')
-      .then((resposta) => setRefeicoes(resposta))
+      .then((resposta) => setRefeicoes(Array.isArray(resposta) ? resposta : []))
       .catch(() => setErro('Não foi possível carregar o cardápio de hoje. Tente novamente.'))
       .finally(() => setCarregando(false));
   };
