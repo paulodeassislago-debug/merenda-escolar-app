@@ -95,6 +95,47 @@ export interface PlanejamentoEntrada {
   data_inicio_vigencia: string;
 }
 
+// --- Projeção cumulativa da semana (D-17: contrato de GET /planejamento/projecao) ---
+
+export interface ProjecaoRuptura {
+  item_id: number;
+  nome: string;
+  faltando: number;
+  unidade_oficial: string;
+}
+
+export interface ProjecaoDia {
+  dia: string;
+  dia_semana: number;
+  rupturas: ProjecaoRuptura[];
+}
+
+export interface ProjecaoItem {
+  item_id: number;
+  nome: string;
+  unidade_oficial: string;
+  saldo_atual: number;
+  consumo_semana: number | null;
+  saldo_projetado: number | null;
+  primeiro_dia_ruptura: number | null;
+  avaliavel: boolean;
+}
+
+export interface ProjecaoSemana {
+  configurado: boolean;
+  data_ref: string;
+  dias: ProjecaoDia[];
+  itens: ProjecaoItem[];
+  resumo: { itens_com_ruptura: number; itens_nao_avaliaveis: number };
+}
+
+// Avisos aditivos do POST /planejamento (D-18 — nunca bloqueiam; unidade vem da projeção)
+export interface PlanejamentoAviso {
+  item_id: number;
+  nome: string;
+  faltando: number;
+}
+
 export interface ItemEntrega {
   id: number;
   item_id: number;

@@ -1,9 +1,13 @@
-// src/pages/admin/Planejamento.tsx — grade semanal com upsert (F10, D-09)
+// src/pages/admin/Planejamento.tsx — grade semanal com upsert (F10, D-09) + projeção (D-17/D-19)
 
 import { useEffect, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
-import type { PlanejamentoEntrada, CardapioItem } from '../../types';
+import type {
+  PlanejamentoEntrada,
+  CardapioItem,
+  ProjecaoSemana,
+} from '../../types';
 import { DIAS_SEMANA, SLOTS_REFEICAO } from './constants';
 import './Planejamento.css';
 
@@ -61,9 +65,26 @@ export default function Planejamento() {
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
 
+  // Projeção cumulativa da semana (D-17/D-19) — falha isolada nunca derruba a grade
+  const [projecao, setProjecao] = useState<ProjecaoSemana | null>(null);
+
   const segunda = segundaDaSemana(semanaRef);
   const domingo = new Date(segunda);
   domingo.setDate(segunda.getDate() + 6);
+
+  /** Busca a projeção da semana (D-17). Falha isolada: a grade segue funcional. */
+  const carregarProjecao = useCallback(async (seg: Date) => {
+    try {
+      const proj = await fetchJson<ProjecaoSemana>(
+        '/planejamento/projecao?data=' + formatISO(seg),
+      );
+      if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return; // semana mudou no meio
+      setProjecao(proj);
+    } catch {
+      if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return;
+      setProjecao(null);
+    }
+  }, [semanaRef]);
 
   /** Refetch após salvar — dependente de semanaRef para usar a semana correta. */
   const carregarDados = useCallback(async () => {
@@ -80,6 +101,7 @@ export default function Planejamento() {
       setPratos(pratosData);
       setSelecoes(buildSelecoes(entradasData));
       setSucesso(false);
+      await carregarProjecao(seg); // atualiza a projeção junto; falha não derruba a grade
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setErro('Sua sessão expirou. Entre novamente.');
@@ -89,7 +111,7 @@ export default function Planejamento() {
     } finally {
       setCarregando(false);
     }
-  }, [semanaRef]);
+  }, [semanaRef, carregarProjecao]);
 
   // Efeito: fetch inicial e ao trocar de semana — inline com cancelled flag
   useEffect(() => {
@@ -122,10 +144,15 @@ export default function Planejamento() {
           setCarregando(false);
         }
       }
+
+      // Projeção em paralelo — falha isolada, nunca derruba a grade (D-19)
+      if (!cancelled) {
+        void carregarProjecao(seg);
+      }
     })();
 
     return () => { cancelled = true; };
-  }, [semanaRef]);
+  }, [semanaRef, carregarProjecao]);
 
   /** Salva o planejamento (task 2): upsert por slot alterado, DELETE ao limpar. */
   const handleSalvar = async (e: FormEvent) => {
@@ -278,6 +305,9 @@ export default function Planejamento() {
                         (p) => p.tipo_refeicao === tipoParaFiltro,
                       );
 
+                      // Projeção (D-19): badge de déficit projetado no dia
+                      const diaProjecao = projecao?.configurado ? projecao.dias[diaIdx] : undefined;
+
                       return (
                         <td key={slot} className="planejamento-celula">
                           <select
@@ -299,6 +329,20 @@ export default function Planejamento() {
                               </option>
                             ))}
                           </select>
+                          {diaProjecao && diaProjecao.rupturas.length > 0 && (
+                            <span
+                              className="badge-ruptura"
+                              title={diaProjecao.rupturas
+                                .map(
+                                  (r) =>
+                                    `${r.nome} −${r.faltando.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${r.unidade_oficial}`,
+                                )
+                                .join('\n')}
+                            >
+                              ⚠ {diaProjecao.rupturas.length}{' '}
+                              {diaProjecao.rupturas.length === 1 ? 'item faltando' : 'itens faltando'}
+                            </span>
+                          )}
                         </td>
                       );
                     })}
