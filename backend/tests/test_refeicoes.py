@@ -116,14 +116,14 @@ def test_r4_item_inexistente(client, admin_user, admin_token, cozinheira_user, c
     assert "não encontrado" in resp.json()["detail"].lower()
 
 
-# R5 — GET /refeicoes/hoje → status pendente/confirmado por tipo (3 tipos: Lanche, Almoço, Janta)
+# R5 — GET /refeicoes/hoje → status pendente/confirmado por SLOT (4 slots: obs #7)
 def test_r5_refeicoes_hoje_status(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
     item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
     _configurar_alunos(client, admin_token)
 
-    # Antes do lançamento: tudo pendente (3 tipos)
+    # Antes do lançamento: tudo pendente (4 slots)
     status = client.get("/refeicoes/hoje", headers=_auth(cozinheira_token)).json()
-    assert len(status) == 3
+    assert len(status) == 4
     assert all(s["status"] == "pendente" for s in status)
 
     # Lança o almoço (Almoço = manha + tarde = 180)
@@ -137,11 +137,14 @@ def test_r5_refeicoes_hoje_status(client, admin_user, admin_token, cozinheira_us
     )
 
     status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
-    por_tipo = {s["tipo_refeicao"]: s for s in status}
-    assert por_tipo["Almoço"]["status"] == "confirmado"
-    assert por_tipo["Almoço"]["alunos"] == 180
-    assert por_tipo["Lanche"]["status"] == "pendente"
-    assert por_tipo["Janta"]["status"] == "pendente"
+    por_slot = {s["slot"]: s for s in status}
+    assert por_slot["Almoço"]["status"] == "confirmado"
+    assert por_slot["Almoço"]["alunos"] == 180
+    # Lançamento sem planejamento → avulsa ocupa o slot com EXTRA (obs #7)
+    assert por_slot["Almoço"]["extra"] is True
+    assert por_slot["Lanche da Manhã"]["status"] == "pendente"
+    assert por_slot["Lanche da Tarde"]["status"] == "pendente"
+    assert por_slot["Janta"]["status"] == "pendente"
 
 
 # R6 — Estoque insuficiente → retorna erro (saldo não fica negativo)
@@ -297,9 +300,9 @@ def test_r10_conforme_receita_sem_justificativa(client, admin_user, admin_token,
         headers=_auth(cozinheira_token),
     )
     assert resp.status_code == 200
-    # /refeicoes/hoje exibe o prato planejado
+    # /refeicoes/hoje exibe o prato planejado no slot Almoço
     status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
-    almoco = next(s for s in status if s["tipo_refeicao"] == "Almoço")
+    almoco = next(s for s in status if s["slot"] == "Almoço")
     assert almoco["status"] == "confirmado"
     assert almoco["prato"] == "Músculo com Batata"
     historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
@@ -606,3 +609,95 @@ def test_r20_auditoria_sem_falsa_divergencia_entre_medidas(client, admin_user, a
     assert item_lancado["medida_caseira"] == "pacote"
     # 170 pacotes × 0,5 kg = 85 kg deduzidos
     assert _saldo(client, admin_token, item["id"]) == 325.0
+
+
+# R21 — Avulsa ocupa o slot com a tag EXTRA (obs #7): POST /refeicoes avulso no
+# slot "Lanche da Manhã" → histórico com slot+extra=true e /refeicoes/hoje com o
+# slot confirmado e extra=true.
+def test_r21_avulsa_ocupa_slot_com_extra(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+    _configurar_alunos(client, admin_token)
+
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Lanche da Manhã",
+            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+
+    # Histórico: slot persistido e extra marcado (sem planejamento)
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    assert len(historico) == 1
+    assert historico[0]["slot"] == "Lanche da Manhã"
+    assert historico[0]["extra"] is True
+    assert historico[0]["planejamento_id"] is None
+
+    # /refeicoes/hoje: o slot fica confirmado com extra=true e prato nulo
+    status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
+    por_slot = {s["slot"]: s for s in status}
+    assert por_slot["Lanche da Manhã"]["status"] == "confirmado"
+    assert por_slot["Lanche da Manhã"]["extra"] is True
+    assert por_slot["Lanche da Manhã"]["prato"] is None
+    assert por_slot["Lanche da Manhã"]["alunos"] == 100  # manha
+    # Demais slots continuam pendentes
+    assert por_slot["Almoço"]["status"] == "pendente"
+    assert por_slot["Lanche da Tarde"]["status"] == "pendente"
+    assert por_slot["Janta"]["status"] == "pendente"
+
+
+# R22 — Refeição com planejamento ocupa o slot sem EXTRA (obs #7): slot "Almoço"
+# confirmado com extra=false e prato do planejamento; demais slots pendentes.
+def test_r22_status_por_slot_planejado(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    from datetime import date
+    hoje = date.today()
+
+    item = _criar_item(client, admin_token, "Arroz", saldo=400.0)
+    _configurar_alunos(client, admin_token)
+    prato = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Músculo com Batata", "tipo_refeicao": "Almoço"},
+        headers=_auth(admin_token),
+    ).json()
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    plan = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Almoço",
+            "dia_semana": hoje.weekday(),
+            "data_inicio_vigencia": hoje.isoformat(),
+        },
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 360, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    assert historico[0]["slot"] == "Almoço"
+    assert historico[0]["extra"] is False
+
+    status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
+    por_slot = {s["slot"]: s for s in status}
+    assert por_slot["Almoço"]["status"] == "confirmado"
+    assert por_slot["Almoço"]["extra"] is False
+    assert por_slot["Almoço"]["prato"] == "Músculo com Batata"
+    assert por_slot["Almoço"]["alunos"] == 180
+    assert por_slot["Lanche da Manhã"]["status"] == "pendente"
+    assert por_slot["Lanche da Tarde"]["status"] == "pendente"
+    assert por_slot["Janta"]["status"] == "pendente"

@@ -25,6 +25,12 @@ _ALTERACOES_ENTREGAS = [
     ("observacoes", "ALTER TABLE entregas ADD COLUMN observacoes TEXT"),
 ]
 
+_ALTERACOES_REFEICOES = [
+    # obs #7: slot de lançamento — nullable para backfill de legado; lançamentos
+    # novos sempre preenchem (main.py grava dados.slot).
+    ("slot", "ALTER TABLE refeicoes ADD COLUMN slot VARCHAR"),
+]
+
 
 def _colunas(engine, tabela: str) -> set[str]:
     if not inspect(engine).has_table(tabela):
@@ -48,6 +54,26 @@ def migrar(engine) -> None:
         for coluna, ddl in _ALTERACOES_ENTREGAS:
             if coluna not in colunas_entregas:
                 conn.execute(text(ddl))
+
+        # Refeições: slot de lançamento (obs #7)
+        colunas_refeicoes = _colunas(engine, "refeicoes")
+        for coluna, ddl in _ALTERACOES_REFEICOES:
+            if coluna not in colunas_refeicoes:
+                conn.execute(text(ddl))
+
+        # Backfill idempotente do slot a partir do planejamento vinculado (obs #7):
+        # refeições legadas com planejamento_id herdam o tipo_refeicao planejado
+        # (que é o slot na Fase 8); avulsas legadas (planejamento_id NULL) seguem
+        # com slot NULL — sem como derivar o lanche.
+        if "slot" in _colunas(engine, "refeicoes"):
+            conn.execute(
+                text(
+                    "UPDATE refeicoes SET slot = ("
+                    "  SELECT tipo_refeicao FROM planejamento "
+                    "  WHERE planejamento.id = refeicoes.planejamento_id"
+                    ") WHERE slot IS NULL AND planejamento_id IS NOT NULL"
+                )
+            )
 
         # Backfill: entregas legadas recebem data_entrega = data(data_hora) (D-10)
         if "data_entrega" in _colunas(engine, "entregas"):

@@ -164,6 +164,9 @@ class Refeicao(Base):
     id_usuario = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     qtd_alunos = Column(Integer, nullable=False)
     planejamento_id = Column(Integer, ForeignKey("planejamento.id"))
+    # Slot de lançamento (obs #7): sempre preenchido em lançamentos novos; NULL
+    # apenas em legado (backfill via planejamento em migracao.py).
+    slot = Column(String, nullable=True)
 
 
 class RefeicaoItem(Base):

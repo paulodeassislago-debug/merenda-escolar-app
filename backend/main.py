@@ -1462,6 +1462,7 @@ def lancar_refeicao_v2(
         id_usuario=usuario.id,
         qtd_alunos=qtd_alunos,
         planejamento_id=dados.planejamento_id,
+        slot=dados.slot,
     )
     db.add(refeicao)
     db.flush()  # garante o id antes de gravar os itens
@@ -1500,6 +1501,8 @@ def historico_refeicoes(
             "id": r.id,
             "data_hora": r.data_hora.isoformat(),
             "tipo_refeicao": r.tipo_refeicao,
+            "slot": r.slot,
+            "extra": r.planejamento_id is None,
             "qtd_alunos": r.qtd_alunos,
             "id_usuario": r.id_usuario,
             "planejamento_id": r.planejamento_id,
@@ -1520,14 +1523,26 @@ def historico_refeicoes(
 
 
 def _status_refeicoes_do_dia(db: Session, dia: date) -> list:
-    """Status (pendente/confirmado) de cada tipo de refeição no dia informado."""
+    """Status (pendente/confirmado) por SLOT do dia informado (obs #7).
+
+    Iteração pelos 4 slots de `SLOTS_PLANEJAMENTO`; para cada slot, a refeição
+    do dia casa por `r.slot == slot`. Legado (slot NULL) cai no fallback por
+    `tipo_refeicao` derivado do slot quando nenhuma outra refeição ocupou o slot.
+    Refeição avulsa (sem planejamento) marca `extra: true` — ocupa o slot.
+    """
     refeicoes = db.query(models.Refeicao).filter(
         func.date(models.Refeicao.data_hora) == dia.isoformat()
     ).all()
 
     status = []
-    for tipo in TIPOS_REFEICAO_VALIDOS:
-        ref = next((r for r in refeicoes if r.tipo_refeicao == tipo), None)
+    for slot in SLOTS_PLANEJAMENTO:
+        ref = next((r for r in refeicoes if r.slot == slot), None)
+        if ref is None:
+            # Legado (slot NULL — avulsas sem derivação): casa pelo tipo derivado
+            ref = next(
+                (r for r in refeicoes if r.slot is None and r.tipo_refeicao == _derivar_tipo_slot(slot)),
+                None,
+            )
         if ref:
             prato = None
             if ref.planejamento_id:
@@ -1536,13 +1551,14 @@ def _status_refeicoes_do_dia(db: Session, dia: date) -> list:
                     card = db.query(models.CardapioItem).filter(models.CardapioItem.id == plan.cardapio_item_id).first()
                     prato = card.nome_refeicao if card else None
             status.append({
-                "tipo_refeicao": tipo,
+                "slot": slot,
                 "status": "confirmado",
+                "extra": ref.planejamento_id is None,
                 "prato": prato,
                 "alunos": ref.qtd_alunos,
             })
         else:
-            status.append({"tipo_refeicao": tipo, "status": "pendente", "prato": None, "alunos": None})
+            status.append({"slot": slot, "status": "pendente", "extra": False, "prato": None, "alunos": None})
     return status
 
 

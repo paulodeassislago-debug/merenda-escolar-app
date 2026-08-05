@@ -17,7 +17,8 @@ def test_d1_secoes_presentes(client, admin_user, admin_token):
     assert "itens_criticos" in dados["estoque"]
 
     assert "refeicoes_hoje" in dados
-    assert len(dados["refeicoes_hoje"]) == 3
+    # obs #7: status por slot — 4 slots (Lanche da Manhã/Almoço/Lanche da Tarde/Janta)
+    assert len(dados["refeicoes_hoje"]) == 4
 
     assert "entregas" in dados
     assert "ultimos_7_dias" in dados["entregas"]
@@ -92,10 +93,12 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
     assert dados["entregas"]["ultimos_30_dias"] == 1
     assert dados["entregas"]["ultima_data"] is not None
 
-    # Refeições hoje: almoço confirmado, demais pendentes
-    almoco = next(r for r in dados["refeicoes_hoje"] if r["tipo_refeicao"] == "Almoço")
+    # Refeições hoje: almoço confirmado no slot Almoço, demais pendentes
+    almoco = next(r for r in dados["refeicoes_hoje"] if r["slot"] == "Almoço")
     assert almoco["status"] == "confirmado"
     assert almoco["alunos"] == 180
+    # Lançamento avulso (sem planejamento_id) → ocupa o slot com EXTRA (obs #7)
+    assert almoco["extra"] is True
 
     # Alunos hoje (derivados da config: manha + tarde = 180)
     assert dados["alunos_hoje"]["total"] == 180
