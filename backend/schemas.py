@@ -46,7 +46,8 @@ class ItemCreate(BaseModel):
     saldo_atual: float = 0.0
     unidade_interna: str | None = None
     fator_conversao: float | None = None
-    limiar: float = Field(5.0, gt=0)
+    # limiar: validação explícita no handler (D-03 exige 400, não 422) — sem Field(gt=0)
+    limiar: float = Field(5.0)
 
 
 class ItemUpdate(BaseModel):
@@ -55,7 +56,7 @@ class ItemUpdate(BaseModel):
     saldo_atual: float | None = None
     unidade_interna: str | None = None
     fator_conversao: float | None = None
-    limiar: float | None = Field(default=None, gt=0)
+    limiar: float | None = Field(default=None)
 
 
 class ItemResponse(BaseModel):

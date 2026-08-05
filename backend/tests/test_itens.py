@@ -118,6 +118,59 @@ def test_4_8_nome_duplicado(client, admin_user, admin_token):
     assert client.post("/itens", json=payload, headers=_auth(admin_token)).status_code == 409
 
 
+# --- 4.9 — Limiar individual de baixo estoque (Fase 8, D-01..D-04) ---
+
+# 4.6 — POST /itens sem limiar → default 5.0 (IMP-01)
+def test_4_6_limiar_default(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Arroz Default", "unidade_oficial": "KG", "saldo_atual": 50.0},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["limiar"] == 5.0
+
+
+# 4.7 — POST /itens com limiar zero ou negativo → 400 (D-03)
+def test_4_7_limiar_invalido_400(client, admin_user, admin_token):
+    resp_zero = client.post(
+        "/itens",
+        json={"nome": "Item Limiar Zero", "unidade_oficial": "KG", "saldo_atual": 10.0, "limiar": 0},
+        headers=_auth(admin_token),
+    )
+    assert resp_zero.status_code == 400
+    assert "limiar" in resp_zero.json()["detail"].lower()
+
+    resp_neg = client.post(
+        "/itens",
+        json={"nome": "Item Limiar Negativo", "unidade_oficial": "KG", "saldo_atual": 10.0, "limiar": -1},
+        headers=_auth(admin_token),
+    )
+    assert resp_neg.status_code == 400
+    assert "limiar" in resp_neg.json()["detail"].lower()
+
+
+# 4.8 — PUT /itens/{id} atualiza limiar → GET confirma (D-04)
+def test_4_8_limiar_atualizado(client, admin_user, admin_token):
+    criado = client.post(
+        "/itens",
+        json={"nome": "Arroz Limiar", "unidade_oficial": "KG", "saldo_atual": 50.0},
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.put(
+        f"/itens/{criado['id']}",
+        json={"limiar": 2.5},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["limiar"] == 2.5
+
+    lista = client.get("/itens", headers=_auth(admin_token)).json()
+    alvo = next(i for i in lista if i["id"] == criado["id"])
+    assert alvo["limiar"] == 2.5
+
+
 # --- 5.7.1 — Unidades livres com conversão interna ---
 
 # A9-1: Criar item com unidade livre + conversão

@@ -44,9 +44,6 @@ TIPOS_REFEICAO_VALIDOS = ["Lanche", "Almoço", "Janta"]
 SLOTS_PLANEJAMENTO = ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
 ACOES_ENTREGA_VALIDAS = ["recebido", "alterado", "excluído"]
 
-# Saldo abaixo deste valor (na unidade oficial) é considerado baixo estoque
-LIMIAR_BAIXO_ESTOQUE = 5.0
-
 
 # --- ROTAS DA API ---
 
@@ -202,6 +199,10 @@ def criar_item(
                 detail=f"unidade_interna deve ser 'KG' ou 'L', recebido: '{dados.unidade_interna}'",
             )
 
+    # Limiar individual de baixo estoque (D-03): ausente usa default 5.0; zero/negativo → 400
+    if dados.limiar is not None and dados.limiar <= 0:
+        raise HTTPException(status_code=400, detail="limiar deve ser maior que zero")
+
     existente = db.query(models.Item).filter(models.Item.nome == dados.nome).first()
     if existente:
         raise HTTPException(status_code=409, detail=f"Já existe um item com o nome '{dados.nome}'")
@@ -238,6 +239,10 @@ def atualizar_item(
     item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
+
+    # Limiar individual de baixo estoque (D-03): ausente (None) mantém o atual; zero/negativo → 400
+    if dados.limiar is not None and dados.limiar <= 0:
+        raise HTTPException(status_code=400, detail="limiar deve ser maior que zero")
 
     if dados.nome is not None:
         duplicado = db.query(models.Item).filter(
@@ -1131,7 +1136,7 @@ def dashboard_admin(
 ):
     hoje = date.today()
 
-    # 1. Estoque
+    # 1. Estoque — críticos pelo limiar individual do item, na unidade de exibição (D-02/D-04)
     itens = db.query(models.Item).all()
     criticos = [
         {
@@ -1140,9 +1145,10 @@ def dashboard_admin(
             "saldo_atual": i.saldo_atual / (i.fator_conversao or 1.0),
             "unidade_oficial": i.unidade_oficial,
             "fator_conversao": i.fator_conversao or 1.0,
+            "limiar": i.limiar or 5.0,
         }
         for i in itens
-        if (i.saldo_atual / (i.fator_conversao or 1.0)) < LIMIAR_BAIXO_ESTOQUE
+        if (i.saldo_atual / (i.fator_conversao or 1.0)) < (i.limiar or 5.0)
     ]
 
     # 2. Refeições de hoje (mesmo formato de /refeicoes/hoje)

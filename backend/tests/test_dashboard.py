@@ -103,3 +103,31 @@ def test_d3_sem_token(client):
 def test_d4_perfil_errado(client, secretaria_user, secretaria_token, cozinheira_user, cozinheira_token):
     assert client.get("/admin/dashboard", headers=_auth(secretaria_token)).status_code == 403
     assert client.get("/admin/dashboard", headers=_auth(cozinheira_token)).status_code == 403
+
+
+# D5 — Item com limiar individual alto → crítico mesmo com saldo > 5.0 (D-02/D-04)
+def test_d5_limiar_individual_critico(client, admin_user, admin_token):
+    client.post(
+        "/itens",
+        json={"nome": "Frango", "unidade_oficial": "KG", "saldo_atual": 50.0, "limiar": 100},
+        headers=_auth(admin_token),
+    )
+
+    dados = client.get("/admin/dashboard", headers=_auth(admin_token)).json()
+    assert dados["estoque"]["baixo_estoque"] == 1
+    critico = dados["estoque"]["itens_criticos"][0]
+    assert critico["nome"] == "Frango"
+    assert critico["limiar"] == 100
+
+
+# D6 — Item com limiar individual baixo → NÃO crítico com saldo 2 (unidade de exibição)
+def test_d6_limiar_individual_estavel(client, admin_user, admin_token):
+    client.post(
+        "/itens",
+        json={"nome": "Sal Marinho", "unidade_oficial": "KG", "saldo_atual": 2.0, "limiar": 0.5},
+        headers=_auth(admin_token),
+    )
+
+    dados = client.get("/admin/dashboard", headers=_auth(admin_token)).json()
+    assert dados["estoque"]["baixo_estoque"] == 0
+    assert all(c["nome"] != "Sal Marinho" for c in dados["estoque"]["itens_criticos"])
