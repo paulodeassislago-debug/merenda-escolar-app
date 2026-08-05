@@ -23,11 +23,16 @@ def _criar_fornecedor(client, token, nome="Fornecedor Teste") -> dict:
 
 
 def _payload_entrega(itens: list, **campos) -> dict:
-    """Corpo padrão de entrega com os campos obrigatórios da Fase 8 (D-05)."""
+    """Corpo padrão de entrega com os campos obrigatórios da Fase 8 (D-05).
+
+    D-07: origem xml exige nota_numero — o helper fornece um default para que
+    os testes de saldo/ações (E1-E13) continuem exercendo o comportamento alvo.
+    """
     payload = {
         "origem": "xml",
         "data_entrega": "2026-08-05",
         "fornecedor_id": campos.get("fornecedor_id"),
+        "nota_numero": campos.get("nota_numero", "NF-TESTE"),
         "itens": itens,
     }
     for chave in ("nota_numero", "observacoes"):

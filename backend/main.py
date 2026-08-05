@@ -803,6 +803,35 @@ def registrar_entrega(
     - `excluído`: não altera o saldo, justificativa obrigatória
     """
     # 1. Validar tudo antes de gravar qualquer coisa
+    # Regras por origem (D-07): manual = observações + só recebido; xml = nota + justificativa
+    if dados.origem not in ("xml", "manual"):
+        raise HTTPException(status_code=400, detail="origem deve ser 'xml' ou 'manual'")
+
+    fornecedor = db.query(models.Fornecedor).filter(
+        models.Fornecedor.id == dados.fornecedor_id
+    ).first()
+    if not fornecedor:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fornecedor com id {dados.fornecedor_id} não encontrado",
+        )
+
+    if dados.origem == "manual":
+        if not dados.observacoes or not dados.observacoes.strip():
+            raise HTTPException(status_code=400, detail="Entregas manuais exigem observações")
+        for item_req in dados.itens:
+            if item_req.acao != "recebido":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Entregas manuais registram apenas ação 'recebido' (item {item_req.item_id})",
+                )
+    elif dados.origem == "xml":
+        if not dados.nota_numero or not dados.nota_numero.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Entregas XML exigem o número da nota (nota_numero)",
+            )
+
     conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] = {}
     fatores_resolvidos: list[tuple[str, float]] = []
     for item_req in dados.itens:
@@ -811,7 +840,12 @@ def registrar_entrega(
                 status_code=400,
                 detail=f"Ação inválida: '{item_req.acao}'. Use: {', '.join(ACOES_ENTREGA_VALIDAS)}",
             )
-        if item_req.acao in ("alterado", "excluído") and not item_req.justificativa:
+        # Justificativa por item é exigida apenas para entregas XML (origem manual só recebe 'recebido')
+        if (
+            dados.origem == "xml"
+            and item_req.acao in ("alterado", "excluído")
+            and not item_req.justificativa
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=f"Item {item_req.item_id}: ação '{item_req.acao}' exige justificativa",
@@ -859,7 +893,8 @@ def registrar_entrega(
             quantidade=item_req.quantidade,
             unidade=unidade,
             fator_conversao=fator,
-            justificativa=item_req.justificativa,
+            # D-07: origem manual não grava justificativa por item (campo sempre None)
+            justificativa=None if dados.origem == "manual" else item_req.justificativa,
             acao=item_req.acao,
         ))
 
