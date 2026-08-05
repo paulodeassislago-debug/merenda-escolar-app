@@ -173,6 +173,24 @@ class FornecedorResponse(BaseModel):
     cnpj: str | None
 
 
+# --- Alunos por período (08-07 — configuração admin-only, D-14/D-15) ---
+
+class AlunosPorPeriodoUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    manha: int = Field(gt=0)
+    tarde: int = Field(gt=0)
+    noite: int = Field(gt=0)
+
+
+class AlunosPorPeriodoResponse(BaseModel):
+    manha: int
+    tarde: int
+    noite: int
+    updated_at: str | None
+    updated_by: int | None
+
+
 # --- Refeições (Fase 3 — com auditoria de ajustes) ---
 
 class RefeicaoItemRequest(BaseModel):

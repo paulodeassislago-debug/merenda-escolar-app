@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -997,6 +997,102 @@ def detalhar_entrega(
             }
             for ie in itens
         ],
+    }
+
+
+# --- ALUNOS POR PERÍODO (configuração admin-only; leitura admin+sec+cozinheira) ---
+# D-14: admin configura 3 grupos (manha/tarde/noite); cozinheira não edita.
+# D-15: o total de cada slot é derivado dos períodos.
+
+def _valores_alunos_por_periodo(db: Session) -> dict[str, int]:
+    """Lê as 3 linhas da configuração; lança HTTPException se alguma faltar."""
+    linhas = db.query(models.AlunosPorPeriodo).all()
+    valores = {linha.periodo: linha.qtd for linha in linhas}
+    if not {"manha", "tarde", "noite"}.issubset(valores):
+        raise HTTPException(
+            status_code=400,
+            detail="Configure os alunos por período antes de lançar a refeição",
+        )
+    return valores
+
+
+def _total_por_slot(db: Session, slot: str) -> int:
+    """Total de alunos do slot (D-15): Lanche da Manhã=manha, Almoço=manha+tarde,
+    Lanche da Tarde=tarde, Janta=noite. 400 se o slot for inválido ou a config faltar."""
+    if slot not in SLOTS_PLANEJAMENTO:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Slot de refeição inválido. Use: {', '.join(SLOTS_PLANEJAMENTO)}",
+        )
+    valores = _valores_alunos_por_periodo(db)
+    if slot == "Lanche da Manhã":
+        return valores["manha"]
+    if slot == "Almoço":
+        return valores["manha"] + valores["tarde"]
+    if slot == "Lanche da Tarde":
+        return valores["tarde"]
+    return valores["noite"]  # Janta
+
+
+def _derivar_tipo_slot(slot: str) -> str:
+    """Espelho de `tipoParaLancamento` do frontend: os dois lanches viram 'Lanche'."""
+    if slot in ("Lanche da Manhã", "Lanche da Tarde"):
+        return "Lanche"
+    return slot
+
+
+@app.get("/alunos-por-periodo")
+def consultar_alunos_por_periodo(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria", "cozinheira")),
+):
+    linhas = db.query(models.AlunosPorPeriodo).all()
+    valores = {linha.periodo: linha for linha in linhas}
+    if not {"manha", "tarde", "noite"}.issubset(valores):
+        raise HTTPException(
+            status_code=404,
+            detail="Configuração de alunos por período ainda não definida",
+        )
+    mais_recente = max(linhas, key=lambda l: l.updated_at or datetime.min)
+    return {
+        "manha": valores["manha"].qtd,
+        "tarde": valores["tarde"].qtd,
+        "noite": valores["noite"].qtd,
+        "updated_at": mais_recente.updated_at.isoformat() if mais_recente.updated_at else None,
+        "updated_by": mais_recente.updated_by,
+    }
+
+
+@app.put("/alunos-por-periodo")
+def configurar_alunos_por_periodo(
+    dados: schemas.AlunosPorPeriodoUpdate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
+):
+    """Upsert das 3 linhas de configuração com auditoria (updated_at/updated_by)."""
+    agora = datetime.now()
+    for periodo, qtd in (("manha", dados.manha), ("tarde", dados.tarde), ("noite", dados.noite)):
+        linha = db.query(models.AlunosPorPeriodo).filter(
+            models.AlunosPorPeriodo.periodo == periodo
+        ).first()
+        if linha:
+            linha.qtd = qtd
+            linha.updated_at = agora
+            linha.updated_by = usuario.id
+        else:
+            db.add(models.AlunosPorPeriodo(
+                periodo=periodo,
+                qtd=qtd,
+                updated_at=agora,
+                updated_by=usuario.id,
+            ))
+    db.commit()
+    return {
+        "manha": dados.manha,
+        "tarde": dados.tarde,
+        "noite": dados.noite,
+        "updated_at": agora.isoformat(),
+        "updated_by": usuario.id,
     }
 
 
