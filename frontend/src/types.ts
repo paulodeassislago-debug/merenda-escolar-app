@@ -254,6 +254,10 @@ export interface RefeicaoHistorico {
   // obs #7: slot de lançamento persistido + flag de refeição avulsa
   slot: string | null;
   extra: boolean;
+  // 08-11: nome exibido (nome_extra em avulsas; prato do planejamento em
+  // planejadas) e o nome extra persistido (null em planejadas/legado)
+  nome_refeicao: string | null;
+  nome_extra: string | null;
   qtd_alunos: number;
   id_usuario: number;
   planejamento_id: number | null;
@@ -269,6 +273,22 @@ export interface StatusSlotRefeicao {
   alunos: number | null;
 }
 
+// 08-11: entrada do cardápio público (GET /publico/cardapio) — lista, sem
+// deduplicar por slot: planejadas e extras do mesmo slot coexistem.
+export interface IngredientePublico {
+  item_nome: string | null;
+  quantidade: number;
+  medida_caseira: string;
+}
+
+export interface RefeicaoPublica {
+  tipo_refeicao: string;
+  nome_refeicao: string | null;
+  slot: string;
+  extra: boolean;
+  ingredientes: IngredientePublico[];
+}
+
 // --- Lançamento de refeição (D-16b/R-5: payload por slot, sem tipo/qtd do cliente) ---
 
 export interface RefeicaoItemRequest {
@@ -281,5 +301,7 @@ export interface RefeicaoItemRequest {
 export interface RefeicaoCreatePayload {
   slot: string;
   planejamento_id?: number | null;
+  // 08-11: nome da refeição extraordinária (obrigatório em avulsas)
+  nome_extra?: string | null;
   itens: RefeicaoItemRequest[];
 }

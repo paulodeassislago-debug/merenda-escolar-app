@@ -156,7 +156,6 @@ button:disabled {
 
 .botao-abrir {
   width: 100%;
-  margin-top: 16px;
 }
 
 .secao-titulo {
@@ -223,13 +222,16 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  /* 08-11: linhas de altura uniforme — cartões esticam para preencher a célula */
+  align-items: stretch;
 }
 
 .slot-card {
   display: flex;
+  height: 100%;
   min-height: 220px;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding: 16px;
   border: 1px solid var(--borda);
   border-radius: var(--raio);
@@ -239,7 +241,7 @@ button:disabled {
 
 .slot-card-topo {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
@@ -255,25 +257,55 @@ button:disabled {
 
 .slot-label {
   color: var(--verde-escuro);
+  font-weight: 700;
 }
 
+/* 08-11: padrão único de tag para Confirmado/Disponível/Pendente/EXTRA —
+   mesma altura mínima, tipografia, padding, arredondamento e alinhamento.
+   A distinção de estado fica na cor de fundo (tokens existentes apenas). */
 .estado-badge {
+  display: inline-flex;
+  align-items: center;
   width: fit-content;
+  min-height: 28px;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   color: var(--texto);
   background: var(--verde-tint);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-/* obs #7: refeição avulsa ocupa o slot com a tag EXTRA (--amarelo/--texto, AA) */
+/* 08-11: refeição extraordinária — visualmente distinta (--amarelo + borda
+   --verde-escuro) sem ser maior que as demais tags. */
 .estado-badge-extra {
   background: var(--amarelo);
   color: var(--texto);
   font-weight: 700;
+  border: 1px solid var(--verde-escuro);
 }
 
 .slot-pendente .estado-badge {
   background: var(--amarelo);
+}
+
+/* 08-11: áreas previsíveis do card — nome (quebra controlada), metadados e
+   área de ação ancorada na base para que títulos longos não desloquem nada. */
+.slot-card-nome {
+  overflow-wrap: anywhere;
+}
+
+.slot-card-metadados {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slot-card-acao {
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .slot-card h3 {
@@ -390,6 +422,11 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 08-11: campo do nome da refeição avulsa — antes dos ingredientes */
+.campo-nome-extra {
+  margin: 16px 0;
 }
 
 .campo-alunos {

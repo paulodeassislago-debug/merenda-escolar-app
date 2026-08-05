@@ -4,22 +4,9 @@
 import { useEffect, useState } from 'react';
 import { fetchJson } from '../api';
 import { SLOTS_REFEICAO } from './admin/constants';
+import type { RefeicaoPublica } from '../types';
 import logoNancy from '../assets/Logo Nancy (Logotipo) (1).jpg';
 import './CardapioPublico.css';
-
-// Tipo de transporte: quantidade e medida_caseira existem apenas para desserializar
-// a resposta do endpoint; nunca chegam ao JSX (D-07-02, D-07-04).
-interface IngredientePublico {
-  item_nome: string | null;
-  quantidade: number;
-  medida_caseira: string;
-}
-
-interface RefeicaoPublica {
-  tipo_refeicao: string;
-  nome_refeicao: string | null;
-  ingredientes: IngredientePublico[];
-}
 
 function formatarDataHoje(): string {
   return new Date().toLocaleDateString('pt-BR', {
@@ -30,25 +17,26 @@ function formatarDataHoje(): string {
   });
 }
 
-// Normaliza a resposta esparsa para os quatro slots na ordem operacional fixa
-// (D-07-05, D-07-06): slots omitidos pela API viram prato nulo com ingredientes vazios.
-function normalizarQuatroSlots(resposta: RefeicaoPublica[]): RefeicaoPublica[] {
+// 08-11: agrupa a resposta (lista, sem deduplicar) pelos quatro slots na ordem
+// operacional fixa (D-07-05, D-07-06): slots omitidos pela API viram lista vazia
+// → cartão "A definir"; planejada e extra do mesmo slot ficam juntas no cartão.
+function entradasPorSlot(resposta: RefeicaoPublica[]): Map<string, RefeicaoPublica[]> {
+  const porSlot = new Map<string, RefeicaoPublica[]>();
+  for (const slot of SLOTS_REFEICAO) {
+    porSlot.set(slot, []);
+  }
   // Guarda de formato: payload não-array (ex.: {"detail": ...} com 200) não pode
   // derrubar o render — vira grid completo de slots "A definir" (WR-02).
   if (!Array.isArray(resposta)) {
-    return SLOTS_REFEICAO.map((slot) => ({
-      tipo_refeicao: slot,
-      nome_refeicao: null,
-      ingredientes: [],
-    }));
+    return porSlot;
   }
-  const porTipo = new Map(resposta.map((refeicao) => [refeicao.tipo_refeicao, refeicao]));
-  return SLOTS_REFEICAO.map((slot) => {
-    const encontrada = porTipo.get(slot);
-    return (
-      encontrada ?? { tipo_refeicao: slot, nome_refeicao: null, ingredientes: [] }
-    );
-  });
+  for (const refeicao of resposta) {
+    const lista = porSlot.get(refeicao.slot) ?? porSlot.get(refeicao.tipo_refeicao);
+    if (lista) {
+      lista.push(refeicao);
+    }
+  }
+  return porSlot;
 }
 
 export default function CardapioPublico() {
@@ -75,9 +63,11 @@ export default function CardapioPublico() {
     carregarCardapio();
   }, []);
 
-  const aoAlternarIngredientes = (slot: string, aberto: boolean) => {
-    setIngredientesAbertos((anterior) => ({ ...anterior, [slot]: aberto }));
+  const aoAlternarIngredientes = (chave: string, aberto: boolean) => {
+    setIngredientesAbertos((anterior) => ({ ...anterior, [chave]: aberto }));
   };
+
+  const entradas = entradasPorSlot(refeicoes);
 
   return (
     <div className="publico-container">
@@ -116,41 +106,68 @@ export default function CardapioPublico() {
             )}
 
             <div className="publico-grid">
-              {normalizarQuatroSlots(refeicoes).map((refeicao, indice) => (
-              <section
-                key={refeicao.tipo_refeicao}
-                className="publico-card"
-                aria-labelledby={`publico-prato-${indice}`}
-              >
-                <p className="publico-tipo">{refeicao.tipo_refeicao}</p>
-                <h2 className="publico-prato" id={`publico-prato-${indice}`}>
-                  {refeicao.nome_refeicao ?? 'A definir'}
-                </h2>
-                {refeicao.ingredientes.length === 0 ? (
-                  <p className="publico-sem-receita">Ingredientes não informados.</p>
-                ) : (
-                  <details
-                    className="publico-disclosure"
-                    onToggle={(evento) =>
-                      aoAlternarIngredientes(refeicao.tipo_refeicao, evento.currentTarget.open)
-                    }
+              {SLOTS_REFEICAO.map((slot, indice) => {
+                const refeicoesDoSlot = entradas.get(slot) ?? [];
+                return (
+                  <section
+                    key={slot}
+                    className="publico-card"
+                    aria-labelledby={refeicoesDoSlot.length > 0
+                      ? `publico-prato-${indice}-0`
+                      : `publico-prato-${indice}`}
                   >
-                    <summary>
-                      {ingredientesAbertos[refeicao.tipo_refeicao]
-                        ? 'Ocultar ingredientes'
-                        : 'Ver ingredientes'}
-                    </summary>
-                    <ul className="publico-ingredientes">
-                      {refeicao.ingredientes.map((ingrediente, idx) => (
-                        <li key={idx}>
-                          {ingrediente.item_nome ?? 'Ingrediente não informado'}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </section>
-              ))}
+                    <p className="publico-tipo">{slot}</p>
+                    {refeicoesDoSlot.length === 0 ? (
+                      <h2 className="publico-prato" id={`publico-prato-${indice}`}>
+                        A definir
+                      </h2>
+                    ) : (
+                      <div className="publico-entradas">
+                        {refeicoesDoSlot.map((refeicao, entradaIdx) => {
+                          const chave = `${slot}-${entradaIdx}`;
+                          return (
+                            <div
+                              key={chave}
+                              className={`publico-entrada ${refeicao.extra ? 'publico-entrada-extra' : ''}`}
+                            >
+                              <h2
+                                className="publico-prato"
+                                id={`publico-prato-${indice}-${entradaIdx}`}
+                              >
+                                {refeicao.nome_refeicao ?? (refeicao.extra ? 'Refeição extraordinária' : 'A definir')}
+                              </h2>
+                              {refeicao.extra && <span className="publico-tag-extra">EXTRA</span>}
+                              {refeicao.ingredientes.length === 0 ? (
+                                <p className="publico-sem-receita">Ingredientes não informados.</p>
+                              ) : (
+                                <details
+                                  className="publico-disclosure"
+                                  onToggle={(evento) =>
+                                    aoAlternarIngredientes(chave, evento.currentTarget.open)
+                                  }
+                                >
+                                  <summary>
+                                    {ingredientesAbertos[chave]
+                                      ? 'Ocultar ingredientes'
+                                      : 'Ver ingredientes'}
+                                  </summary>
+                                  <ul className="publico-ingredientes">
+                                    {refeicao.ingredientes.map((ingrediente, idx) => (
+                                      <li key={idx}>
+                                        {ingrediente.item_nome ?? 'Ingrediente não informado'}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </details>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </div>
           </>
         )}

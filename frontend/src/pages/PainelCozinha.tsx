@@ -92,6 +92,8 @@ export default function PainelCozinha() {
   const [receitaCarregada, setReceitaCarregada] = useState(false);
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const [slotAvulso, setSlotAvulso] = useState<SlotRefeicao | null>(null);
+  // 08-11: nome da refeição extraordinária (obrigatório no lançamento avulso)
+  const [nomeExtraAvulso, setNomeExtraAvulso] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const receitaRequestId = useRef(0);
   const planejamentoRequestId = useRef(0);
@@ -293,6 +295,7 @@ export default function PainelCozinha() {
     setReceitaCarregada(false);
     setConfirmarDescarte(false);
     setMensagemSucesso(null);
+    setNomeExtraAvulso('');
     setSlotAvulso(slot);
     try {
       const catalogo = await fetchJson<Item[]>('/itens');
@@ -311,6 +314,7 @@ export default function PainelCozinha() {
     entradaSelecionadaAtual.current = null;
     setEntradaSelecionada(null);
     setSlotAvulso(null);
+    setNomeExtraAvulso('');
     setIngredientes([]);
     setItemParaAdicionar('');
     setErroReceita(null);
@@ -508,6 +512,8 @@ export default function PainelCozinha() {
     const dataNoEnvio = dataReferencia;
     const slotNoEnvio = slotAvulso;
 
+    // 08-11: nome da refeição extraordinária é obrigatório (espelho do backend)
+    const nomeValido = nomeExtraAvulso.trim() !== '';
     const ingredientesValidos = ingredientes.length > 0 && ingredientes.every(
       (item) => item.quantidadeAtual >= 0 && Number.isFinite(item.quantidadeAtual)
         && item.quantidadeAtual > 0
@@ -516,11 +522,13 @@ export default function PainelCozinha() {
     const justificativasValidas = ingredientes.every(
       (item) => !itemTemDivergencia(item) || item.justificativa.trim() !== '',
     );
-    if (!ingredientesValidos || !justificativasValidas) {
+    if (!nomeValido || !ingredientesValidos || !justificativasValidas) {
       setErroEnvio(
-        !justificativasValidas
-          ? 'Informe a justificativa de cada ingrediente com quantidade alterada antes de confirmar.'
-          : 'Escolha uma conversão cadastrada e informe a quantidade de cada ingrediente.',
+        !nomeValido
+          ? 'Informe o nome da refeição servida.'
+          : !justificativasValidas
+            ? 'Informe a justificativa de cada ingrediente com quantidade alterada antes de confirmar.'
+            : 'Escolha uma conversão cadastrada e informe a quantidade de cada ingrediente.',
       );
       return;
     }
@@ -531,6 +539,7 @@ export default function PainelCozinha() {
       const payload: RefeicaoCreatePayload = {
         slot: slotNoEnvio,
         planejamento_id: null,
+        nome_extra: nomeExtraAvulso.trim(),
         itens: ingredientes.map((item) => ({
           item_id: item.itemId,
           quantidade: item.quantidadeAtual,
@@ -693,6 +702,7 @@ export default function PainelCozinha() {
                entradaSelecionadaAtual.current = null;
                setEntradaSelecionada(null);
                setSlotAvulso(null);
+               setNomeExtraAvulso('');
               setIngredientes([]);
               setErroReceita(null);
               setErroEnvio(null);
@@ -751,21 +761,35 @@ export default function PainelCozinha() {
                       {extra && <span className="estado-badge estado-badge-extra">EXTRA</span>}
                     </span>
                   </div>
-                  {entrada ? (
-                    <>
-                      <h3>{entrada.nome_refeicao}</h3>
-                      <p>Vigente desde {dataLegivel(entrada.data_inicio_vigencia)}</p>
-                      {confirmado && <p className="mensagem-sucesso">Refeição registrada e estoque atualizado.</p>}
+                  <h3 className="slot-card-nome">
+                    {extra && statusSlot?.prato
+                      ? statusSlot.prato
+                      : entrada
+                        ? entrada.nome_refeicao
+                        : 'Nenhum prato definido'}
+                  </h3>
+                  <div className="slot-card-metadados">
+                    {extra ? (
+                      <>
+                        <p>Refeição extraordinária servida fora do planejamento.</p>
+                        {confirmado && <p className="mensagem-sucesso">Refeição registrada e estoque atualizado.</p>}
+                      </>
+                    ) : entrada ? (
+                      <>
+                        <p>Vigente desde {dataLegivel(entrada.data_inicio_vigencia)}</p>
+                        {confirmado && <p className="mensagem-sucesso">Refeição registrada e estoque atualizado.</p>}
+                      </>
+                    ) : (
+                      <p>Nenhum prato definido para este horário.</p>
+                    )}
+                  </div>
+                  <div className="slot-card-acao">
+                    {entrada && (
                       <button type="button" className="botao-abrir" onClick={(evento) => abrirEditor(entrada, evento.currentTarget)} disabled={salvando}>
                         Revisar refeição
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      <h3>Nenhum prato definido</h3>
-                      <p>Nenhum prato definido para este horário.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </article>
               );
             })}
@@ -842,11 +866,29 @@ export default function PainelCozinha() {
                 <p className="ajuda-auditoria">
                   Não há receita planejada para este lançamento: as quantidades informadas abaixo são a baixa do estoque.
                 </p>
+                <div className="campo-formulario campo-nome-extra">
+                  <label htmlFor="nome-extra-avulso">Nome da refeição</label>
+                  <input
+                    id="nome-extra-avulso"
+                    type="text"
+                    value={nomeExtraAvulso}
+                    onChange={(evento) => setNomeExtraAvulso(evento.target.value)}
+                    maxLength={120}
+                    placeholder="Ex.: Lasanha de legumes"
+                    disabled={salvando}
+                    required
+                    aria-describedby="ajuda-nome-extra"
+                    aria-invalid={nomeExtraAvulso.trim() === ''}
+                  />
+                  <span id="ajuda-nome-extra" className="campo-ajuda">
+                    Nome exibido no cardápio público com a tag EXTRA.
+                  </span>
+                </div>
                 {controlesIngredientes}
                 {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
                 <footer className="modal-acoes">
                   <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
-                  <button type="submit" className="botao-primario" disabled={salvando || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
+                  <button type="submit" className="botao-primario" disabled={salvando || nomeExtraAvulso.trim() === '' || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
                     {salvando ? 'Registrando…' : 'Confirmar lançamento avulso'}
                   </button>
                 </footer>
