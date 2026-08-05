@@ -1364,19 +1364,40 @@ def lancar_refeicao_v2(
             )
 
         # Auditoria: a receita-base é por aluno; divergência da receita escalada exige justificativa.
+        # WR-02: a comparação é SEMPRE na unidade oficial (kg/L) — a quantidade esperada da
+        # receita (medida caseira) é convertida com a mesma tabela de conversões do envio, e o
+        # registro de auditoria guarda o esperado expresso na medida enviada (sem misturar unidades).
         receita_item = receita_map.get(item_req.item_id)
         quantidade_esperada = receita_item.quantidade * qtd_alunos if receita_item else None
+        quantidade_original = item_req.quantidade
         if dados.planejamento_id is not None:
-            divergente = receita_item is None or abs(quantidade_esperada - item_req.quantidade) > 1e-9
+            divergente = receita_item is None
+            if receita_item is not None:
+                try:
+                    esperada_oficial = _converter_para_unidade_oficial(
+                        db, item, quantidade_esperada, receita_item.medida_caseira
+                    )
+                except HTTPException:
+                    # Medida da receita sem conversão cadastrada: mantém a comparação crua
+                    # histórica (a cozinha normalmente envia na medida da receita).
+                    divergente = abs(quantidade_esperada - item_req.quantidade) > 1e-9
+                    quantidade_original = quantidade_esperada
+                else:
+                    divergente = abs(esperada_oficial - qtd_oficial) > 1e-9
+                    fator_enviado = _converter_para_unidade_oficial(
+                        db, item, 1.0, item_req.medida_caseira
+                    )
+                    if fator_enviado:
+                        quantidade_original = esperada_oficial / fator_enviado
             if divergente and not item_req.justificativa:
                 motivo = "não faz parte da receita planejada" if receita_item is None else \
-                    f"quantidade diverge da receita planejada ({quantidade_esperada} {receita_item.medida_caseira} para {qtd_alunos} alunos)"
+                    f"quantidade diverge da receita planejada ({quantidade_original} {item_req.medida_caseira} para {qtd_alunos} alunos)"
                 raise HTTPException(
                     status_code=400,
                     detail=f"Item '{item.nome}' {motivo} — justificativa obrigatória",
                 )
 
-        preparados.append((item, item_req, qtd_oficial, receita_item, quantidade_esperada))
+        preparados.append((item, item_req, qtd_oficial, quantidade_original))
 
     refeicao = models.Refeicao(
         tipo_refeicao=tipo,
@@ -1387,12 +1408,12 @@ def lancar_refeicao_v2(
     db.add(refeicao)
     db.flush()  # garante o id antes de gravar os itens
 
-    for item, item_req, qtd_oficial, receita_item, quantidade_esperada in preparados:
+    for item, item_req, qtd_oficial, quantidade_original in preparados:
         item.saldo_atual -= qtd_oficial
         db.add(models.RefeicaoItem(
             refeicao_id=refeicao.id,
             item_id=item.id,
-            quantidade_original=quantidade_esperada if quantidade_esperada is not None else item_req.quantidade,
+            quantidade_original=quantidade_original,
             quantidade_ajustada=item_req.quantidade,
             medida_caseira=item_req.medida_caseira,
             justificativa=item_req.justificativa,

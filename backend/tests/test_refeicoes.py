@@ -519,3 +519,90 @@ def test_r19_avulso_sem_planejamento(client, admin_user, admin_token, cozinheira
     assert historico[0]["tipo_refeicao"] == "Almoço"
     # 2 kg deduzidos do estoque
     assert _saldo(client, admin_token, item["id"]) == 8.0
+
+
+# R20 — WR-02: auditoria compara na mesma unidade (medida da receita ≠ medida enviada)
+def test_r20_auditoria_sem_falsa_divergencia_entre_medidas(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    from datetime import date
+    hoje = date.today()
+
+    item = _criar_item(client, admin_token, "Arroz", saldo=500.0)
+    _criar_conversao(client, admin_token, item["id"], "pacote", 0.5)  # 1 pacote = 0.5 kg
+    _configurar_alunos(client, admin_token)
+    prato = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Arroz Cozido", "tipo_refeicao": "Almoço"},
+        headers=_auth(admin_token),
+    ).json()
+    # Receita planejada: 0,5 kg de arroz por aluno → 90 kg para 180 alunos (Almoço)
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 0.5, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    plan = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Almoço",
+            "dia_semana": hoje.weekday(),
+            "data_inicio_vigencia": hoje.isoformat(),
+        },
+        headers=_auth(admin_token),
+    ).json()
+
+    # 180 pacotes = 90 kg → conforme à receita escalada (90 kg): SEM justificativa
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 180, "medida_caseira": "pacote"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200, resp.text
+
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    item_lancado = historico[0]["itens"][0]
+    # Auditoria na MESMA medida da linha (pacote) — sem mistura de unidades
+    assert item_lancado["quantidade_original"] == 180
+    assert item_lancado["quantidade_ajustada"] == 180
+    assert item_lancado["medida_caseira"] == "pacote"
+    assert item_lancado["justificativa"] is None
+    # 180 pacotes × 0,5 kg = 90 kg deduzidos
+    assert _saldo(client, admin_token, item["id"]) == 410.0
+
+    # Divergência real (170 pacotes = 85 kg ≠ 90 kg) → justificativa obrigatória
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 170, "medida_caseira": "pacote"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 400
+    assert "justificativa" in resp.json()["detail"].lower()
+
+    # Com justificativa → 200; esperado de 90 kg expresso na medida enviada: 180 pacotes
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "itens": [
+                {"item_id": item["id"], "quantidade": 170, "medida_caseira": "pacote", "justificativa": "Faltaram 10 kg no repasse"},
+            ],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200, resp.text
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    item_lancado = historico[0]["itens"][0]
+    assert item_lancado["quantidade_original"] == 180
+    assert item_lancado["quantidade_ajustada"] == 170
+    assert item_lancado["medida_caseira"] == "pacote"
+    # 170 pacotes × 0,5 kg = 85 kg deduzidos
+    assert _saldo(client, admin_token, item["id"]) == 325.0
