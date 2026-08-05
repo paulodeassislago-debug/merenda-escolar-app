@@ -1010,6 +1010,14 @@ export default function Entregas() {
               />
             </div>
 
+            {/* WR-04: falha de parse do XML visível também aqui — o erro de
+                handleUploadXml era renderizado só no fluxo 'editando'. */}
+            {erroSubmit && (
+              <p className="alerta-erro" role="alert">
+                {erroSubmit}
+              </p>
+            )}
+
             <div className="modal-acoes">
               <button
                 type="button"
