@@ -36,15 +36,19 @@
   font-size: 0.875rem;
 }
 
-/* Container da grade (overflow horizontal se necessário) */
+/* Container da grade (overflow horizontal controlado em telas estreitas —
+   o banner/painel de projeção não participam da largura da grade) */
 .planejamento-grade-container {
   overflow-x: auto;
   margin-bottom: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Grade principal */
 .planejamento-grade {
   table-layout: fixed;
+  width: 100%;
   min-width: 640px;
 }
 
@@ -84,11 +88,32 @@
 /* Células com select */
 .planejamento-celula {
   padding: 0.25rem !important;
+  min-width: 0;
+}
+
+/* 08-11: estrutura interna estável — select + área de aviso em coluna, com
+   altura reservada para o badge em TODAS as células (presente ou não).
+   `min-width: 0` permite que o select ocupe a largura disponível sem estourar
+   a célula; o badge quebra dentro da célula (overflow-wrap). */
+.planejamento-celula-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+}
+
+.planejamento-celula-aviso {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 32px; /* reserva o espaço do badge mesmo sem ruptura */
 }
 
 /* Select dentro da célula */
 .planejamento-select {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--borda);
   border-radius: var(--raio);
   padding: 0.5rem;
@@ -137,10 +162,11 @@
 
 /* ============ Projeção da semana (D-19) ============ */
 
-/* Badge de déficit projetado na célula (--erro sobre --erro-fundo, AA) */
+/* Badge de déficit projetado na célula (--erro sobre --erro-fundo, AA).
+   08-11: quebra controlada dentro da célula (overflow-wrap/white-space),
+   sem margem própria — o espaçamento vem da coluna .planejamento-celula-aviso. */
 .badge-ruptura {
   display: inline-block;
-  margin-top: 0.5rem; /* --sm = 8px (UI-SPEC) */
   padding: 0.125rem 0.375rem;
   border-radius: var(--raio);
   background-color: var(--erro-fundo);
@@ -150,6 +176,8 @@
   line-height: 1.35;
   max-width: 100%;
   box-sizing: border-box;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* Painel colapsável (disclosure nativo, padrão Fase 7) */
@@ -266,6 +294,11 @@
   padding-left: 1.25rem;
   color: var(--erro);
   font-size: 0.875rem;
+}
+
+/* 08-11: nomes longos quebram sem deslocar o banner nem a grade */
+.banner-aviso-lista li {
+  overflow-wrap: anywhere;
 }
 
 .banner-aviso-acoes {

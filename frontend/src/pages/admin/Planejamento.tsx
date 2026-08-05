@@ -412,42 +412,49 @@ export default function Planejamento() {
 
                       return (
                         <td key={slot} className="planejamento-celula">
-                          <select
-                            className={`form-input planejamento-select ${!valorAtual ? 'celula-vazia' : ''}`}
-                            value={String(valorAtual)}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              const novasSelecoes = {
-                                ...selecoes,
-                                [chave]: v === '' ? null : Number(v),
-                              };
-                              setSelecoes(novasSelecoes);
-                              setSucesso(false);
-                              // obs #4: pré-visualiza a projeção sem salvar (debounce)
-                              agendarRefetchProjecao(novasSelecoes);
-                            }}
-                          >
-                            <option value="">— A definir —</option>
-                            {pratosFiltrados.map((prato) => (
-                              <option key={prato.id} value={prato.id}>
-                                {prato.nome_refeicao}
-                              </option>
-                            ))}
-                          </select>
-                          {rupturasSlot.length > 0 && (
-                            <span
-                              className="badge-ruptura"
-                              title={rupturasSlot
-                                .map(
-                                  (r) =>
-                                    `${r.nome} −${r.faltando.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${r.unidade_oficial}`,
-                                )
-                                .join('\n')}
+                          <div className="planejamento-celula-conteudo">
+                            <select
+                              className={`form-input planejamento-select ${!valorAtual ? 'celula-vazia' : ''}`}
+                              value={String(valorAtual)}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                const novasSelecoes = {
+                                  ...selecoes,
+                                  [chave]: v === '' ? null : Number(v),
+                                };
+                                setSelecoes(novasSelecoes);
+                                setSucesso(false);
+                                // obs #4: pré-visualiza a projeção sem salvar (debounce)
+                                agendarRefetchProjecao(novasSelecoes);
+                              }}
                             >
-                              ⚠ {rupturasSlot.length}{' '}
-                              {rupturasSlot.length === 1 ? 'item faltando' : 'itens faltando'}
+                              <option value="">— A definir —</option>
+                              {pratosFiltrados.map((prato) => (
+                                <option key={prato.id} value={prato.id}>
+                                  {prato.nome_refeicao}
+                                </option>
+                              ))}
+                            </select>
+                            {/* 08-11: área de aviso com altura reservada em TODAS
+                                as células (badge ou placeholder vazio) — uma célula
+                                com ruptura não desalinha selects/badges das demais. */}
+                            <span className="planejamento-celula-aviso">
+                              {rupturasSlot.length > 0 && (
+                                <span
+                                  className="badge-ruptura"
+                                  title={rupturasSlot
+                                    .map(
+                                      (r) =>
+                                        `${r.nome} −${r.faltando.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${r.unidade_oficial}`,
+                                    )
+                                    .join('\n')}
+                                >
+                                  ⚠ {rupturasSlot.length}{' '}
+                                  {rupturasSlot.length === 1 ? 'item faltando' : 'itens faltando'}
+                                </span>
+                              )}
                             </span>
-                          )}
+                          </div>
                         </td>
                       );
                     })}
