@@ -73,8 +73,8 @@
 - [x] **QUAL-02**: Frontend compila com `npm run build` sem erros TypeScript ou bundle.
 - [x] **QUAL-03**: Frontend passa `npm run lint` sem warnings ou erros.
 - [x] **QUAL-04**: Comandos backend sao executados a partir de `backend/` para respeitar a URL SQLite relativa.
-- [ ] **QUAL-05**: Checklist manual F1-F17 deve ser concluido sem falhas. **Phase 7**
-- [ ] **QUAL-06**: Fluxo ponta a ponta conversao → baixa → refeicao → auditoria deve ser verificado. **Phase 7**
+- [x] **QUAL-05**: Checklist manual F1-F17 deve ser concluido sem falhas. **Phase 7**
+- [x] **QUAL-06**: Fluxo ponta a ponta conversao → baixa → refeicao → auditoria deve ser verificado. **Phase 7**
 
 ## Phase 8 Improvements
 

@@ -137,7 +137,7 @@ Plans:
   3. Fluxo conversao → baixa → refeicao → auditoria e verificado.
   4. Checklist manual F1-F17 passa.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans executed
 
 Plans:
 **Wave 1**
@@ -146,7 +146,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — Consolidar validação, UAT F1-F17 e prova ponta a ponta de conversão, baixa e auditoria
+- [x] 07-02-PLAN.md — Consolidar validação, UAT F1-F17 e prova ponta a ponta de conversão, baixa e auditoria
 
 **Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/codebase/TESTING.md`
 
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Fundacao Frontend | pre-GSD | Complete | 2026-07-31 |
 | 5. Paginas Admin | 7/7 | Complete | 2026-08-03 |
 | 6. Cozinha + Gestao | 2/2 | Complete | 2026-08-04 |
-| 7. Finalizacao | 1/2 | In Progress|  |
+| 7. Finalizacao | 2/2 | In Progress|  |
 | 8. Improvements | 0/? | Backlog | - |
 
 ---
