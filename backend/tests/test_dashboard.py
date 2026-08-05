@@ -76,6 +76,7 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),

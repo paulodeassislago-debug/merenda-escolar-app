@@ -51,6 +51,7 @@ def test_r1_conversao_aplicada_estoque_deduzido(client, admin_user, admin_token,
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Arroz com Frango",
             "itens": [{"item_id": item["id"], "quantidade": 4, "medida_caseira": "pacote"}],
         },
         headers=_auth(cozinheira_token),
@@ -69,6 +70,7 @@ def test_r2_justificativa_gravada(client, admin_user, admin_token, cozinheira_us
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Arroz com Frango",
             "itens": [
                 {"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg", "justificativa": "A pedido da nutricionista"},
             ],
@@ -91,6 +93,7 @@ def test_r3_medida_sem_conversao(client, admin_user, admin_token, cozinheira_use
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Arroz com Frango",
             "itens": [{"item_id": item["id"], "quantidade": 4, "medida_caseira": "colher"}],
         },
         headers=_auth(cozinheira_token),
@@ -108,6 +111,7 @@ def test_r4_item_inexistente(client, admin_user, admin_token, cozinheira_user, c
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Arroz com Frango",
             "itens": [{"item_id": 9999, "quantidade": 1, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -131,6 +135,7 @@ def test_r5_refeicoes_hoje_status(client, admin_user, admin_token, cozinheira_us
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -156,6 +161,7 @@ def test_r6_estoque_insuficiente(client, admin_user, admin_token, cozinheira_use
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 5, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -181,6 +187,7 @@ def test_r8_perfil_errado(client, admin_user, admin_token, cozinheira_user, cozi
     item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
     payload = {
         "slot": "Almoço",
+        "nome_extra": "Lasanha",
         "itens": [{"item_id": item["id"], "quantidade": 1, "medida_caseira": "kg"}],
     }
 
@@ -322,6 +329,7 @@ def test_refeicoes_tipo_lanche(client, admin_user, admin_token, cozinheira_user,
         "/refeicoes",
         json={
             "slot": "Lanche da Manhã",
+            "nome_extra": "Vitamina de Banana",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -354,6 +362,7 @@ def test_r11_medida_nova_com_peso_rejeitada(client, admin_user, admin_token, coz
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{
                 "item_id": item["id"],
                 "quantidade": 4,
@@ -380,6 +389,7 @@ def test_r12_medida_com_peso_invalido(client, admin_user, admin_token, cozinheir
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{
                 "item_id": item["id"],
                 "quantidade": 4,
@@ -401,6 +411,7 @@ def test_r13_quantidade_negativa_rejeitada(client, admin_user, admin_token, cozi
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": -1, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -431,6 +442,7 @@ def test_r15_campos_livres_no_envelope_rejeitados(client, admin_user, admin_toke
             "/refeicoes",
             json={
                 "slot": "Almoço",
+                "nome_extra": "Lasanha",
                 campo: valor,
                 "itens": [{"item_id": item["id"], "quantidade": 1, "medida_caseira": "kg"}],
             },
@@ -457,6 +469,7 @@ def test_r16_derivacao_por_slot(client, admin_user, admin_token, cozinheira_user
             "/refeicoes",
             json={
                 "slot": slot,
+                "nome_extra": "Lasanha",
                 "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
             },
             headers=_auth(cozinheira_token),
@@ -474,6 +487,7 @@ def test_r17_config_ausente_400(client, admin_user, admin_token, cozinheira_user
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -493,6 +507,7 @@ def test_r18_slot_invalido_400(client, admin_user, admin_token, cozinheira_user,
         "/refeicoes",
         json={
             "slot": "Brunch",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -511,6 +526,7 @@ def test_r19_avulso_sem_planejamento(client, admin_user, admin_token, cozinheira
         "/refeicoes",
         json={
             "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -520,6 +536,8 @@ def test_r19_avulso_sem_planejamento(client, admin_user, admin_token, cozinheira
     assert historico[0]["planejamento_id"] is None
     assert historico[0]["qtd_alunos"] == 180
     assert historico[0]["tipo_refeicao"] == "Almoço"
+    assert historico[0]["nome_extra"] == "Lasanha"
+    assert historico[0]["nome_refeicao"] == "Lasanha"
     # 2 kg deduzidos do estoque
     assert _saldo(client, admin_token, item["id"]) == 8.0
 
@@ -622,6 +640,7 @@ def test_r21_avulsa_ocupa_slot_com_extra(client, admin_user, admin_token, cozinh
         "/refeicoes",
         json={
             "slot": "Lanche da Manhã",
+            "nome_extra": "Bolo de Fubá",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -634,13 +653,14 @@ def test_r21_avulsa_ocupa_slot_com_extra(client, admin_user, admin_token, cozinh
     assert historico[0]["slot"] == "Lanche da Manhã"
     assert historico[0]["extra"] is True
     assert historico[0]["planejamento_id"] is None
+    assert historico[0]["nome_extra"] == "Bolo de Fubá"
 
-    # /refeicoes/hoje: o slot fica confirmado com extra=true e prato nulo
+    # /refeicoes/hoje: o slot fica confirmado com extra=true e o nome no prato
     status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
     por_slot = {s["slot"]: s for s in status}
     assert por_slot["Lanche da Manhã"]["status"] == "confirmado"
     assert por_slot["Lanche da Manhã"]["extra"] is True
-    assert por_slot["Lanche da Manhã"]["prato"] is None
+    assert por_slot["Lanche da Manhã"]["prato"] == "Bolo de Fubá"
     assert por_slot["Lanche da Manhã"]["alunos"] == 100  # manha
     # Demais slots continuam pendentes
     assert por_slot["Almoço"]["status"] == "pendente"
@@ -701,3 +721,122 @@ def test_r22_status_por_slot_planejado(client, admin_user, admin_token, cozinhei
     assert por_slot["Lanche da Manhã"]["status"] == "pendente"
     assert por_slot["Lanche da Tarde"]["status"] == "pendente"
     assert por_slot["Janta"]["status"] == "pendente"
+
+
+# R23 — 08-11: nome da refeição avulsa é OBRIGATÓRIO (ausente ou só espaços → 400)
+def test_r23_avulsa_sem_nome_rejeitada(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+    _configurar_alunos(client, admin_token)
+
+    for payload in (
+        {"slot": "Almoço", "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}]},
+        {"slot": "Almoço", "nome_extra": "   ", "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}]},
+        {"slot": "Almoço", "nome_extra": "", "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}]},
+    ):
+        resp = client.post("/refeicoes", json=payload, headers=_auth(cozinheira_token))
+        assert resp.status_code == 400, f"payload: {payload}"
+        assert "nome" in resp.json()["detail"].lower()
+    # Nada foi deduzido
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+
+# R24 — 08-11: nome da avulsa persistido e serializado no histórico
+def test_r24_nome_extra_persistido(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+    _configurar_alunos(client, admin_token)
+
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Lanche da Manhã",
+            "nome_extra": "Lasanha",
+            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+
+    historico = client.get("/refeicoes", headers=_auth(admin_token)).json()
+    assert len(historico) == 1
+    assert historico[0]["extra"] is True
+    assert historico[0]["nome_extra"] == "Lasanha"
+    assert historico[0]["nome_refeicao"] == "Lasanha"
+    assert historico[0]["slot"] == "Lanche da Manhã"
+
+
+# R25 — 08-11: /refeicoes/hoje exibe o nome da extra no prato; planejada com
+# nome_extra no payload é rejeitada (o nome extra nunca substitui o planejado)
+def test_r25_hoje_nome_extra_e_planejada_sem_nome(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    from datetime import date
+    hoje = date.today()
+
+    item = _criar_item(client, admin_token, "Arroz", saldo=400.0)
+    _configurar_alunos(client, admin_token)
+
+    # Avulsa nomeada no lanche da manhã
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Lanche da Manhã",
+            "nome_extra": "Bolo de Fubá",
+            "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+
+    status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
+    por_slot = {s["slot"]: s for s in status}
+    assert por_slot["Lanche da Manhã"]["status"] == "confirmado"
+    assert por_slot["Lanche da Manhã"]["extra"] is True
+    assert por_slot["Lanche da Manhã"]["prato"] == "Bolo de Fubá"
+
+    # Planejada com nome_extra → 400 (o prato do planejamento é a única identidade)
+    prato = client.post(
+        "/cardapio",
+        json={"nome_refeicao": "Músculo com Batata", "tipo_refeicao": "Almoço"},
+        headers=_auth(admin_token),
+    ).json()
+    # Receita planejada: 2 kg de arroz por aluno → 360 kg para 180 alunos (Almoço)
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    plan = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Almoço",
+            "dia_semana": hoje.weekday(),
+            "data_inicio_vigencia": hoje.isoformat(),
+        },
+        headers=_auth(admin_token),
+    ).json()
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "nome_extra": "Nome Invasor",
+            "itens": [{"item_id": item["id"], "quantidade": 360, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 400
+    assert "planejada" in resp.json()["detail"].lower()
+    # O lançamento planejado sem nome_extra continua funcionando
+    resp = client.post(
+        "/refeicoes",
+        json={
+            "slot": "Almoço",
+            "planejamento_id": plan["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 360, "medida_caseira": "kg"}],
+        },
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 200
+    status = client.get("/refeicoes/hoje", headers=_auth(admin_token)).json()
+    almoco = next(s for s in status if s["slot"] == "Almoço")
+    assert almoco["extra"] is False
+    assert almoco["prato"] == "Músculo com Batata"

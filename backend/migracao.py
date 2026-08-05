@@ -29,6 +29,10 @@ _ALTERACOES_REFEICOES = [
     # obs #7: slot de lançamento — nullable para backfill de legado; lançamentos
     # novos sempre preenchem (main.py grava dados.slot).
     ("slot", "ALTER TABLE refeicoes ADD COLUMN slot VARCHAR"),
+    # 08-11: nome da refeição extraordinária — nullable para preservar legado
+    # (avulsas antigas e planejadas ficam com NULL); lançamentos avulsos novos
+    # sempre preenchem (main.py valida).
+    ("nome_extra", "ALTER TABLE refeicoes ADD COLUMN nome_extra VARCHAR"),
 ]
 
 

@@ -167,6 +167,9 @@ class Refeicao(Base):
     # Slot de lançamento (obs #7): sempre preenchido em lançamentos novos; NULL
     # apenas em legado (backfill via planejamento em migracao.py).
     slot = Column(String, nullable=True)
+    # Nome da refeição extraordinária (08-11): obrigatório em lançamentos
+    # avulsos novos; NULL em refeições planejadas e em avulsas legadas.
+    nome_extra = Column(String, nullable=True)
 
 
 class RefeicaoItem(Base):

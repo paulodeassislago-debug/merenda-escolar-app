@@ -1390,6 +1390,21 @@ def lancar_refeicao_v2(
         )
     qtd_alunos = _total_por_slot(db, dados.slot)
 
+    # 08-11: nome da refeição extraordinária (T-08-17) — obrigatório em avulsas
+    # (planejamento_id None), rejeitado em planejadas (nunca substitui o prato
+    # planejado). Só espaços conta como ausente.
+    if dados.planejamento_id is None:
+        if not dados.nome_extra or not dados.nome_extra.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Informe o nome da refeição no lançamento avulso",
+            )
+    elif dados.nome_extra and dados.nome_extra.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Refeições planejadas não aceitam nome extra: use o prato do planejamento",
+        )
+
     # Receita de referência (quando ligada a um planejamento)
     receita_map = {}
     if dados.planejamento_id is not None:
@@ -1463,6 +1478,7 @@ def lancar_refeicao_v2(
         qtd_alunos=qtd_alunos,
         planejamento_id=dados.planejamento_id,
         slot=dados.slot,
+        nome_extra=dados.nome_extra.strip() if dados.nome_extra else None,
     )
     db.add(refeicao)
     db.flush()  # garante o id antes de gravar os itens
@@ -1497,12 +1513,22 @@ def historico_refeicoes(
     resultado = []
     for r in refeicoes:
         itens = db.query(models.RefeicaoItem).filter(models.RefeicaoItem.refeicao_id == r.id).all()
+        # 08-11: nome exibido da refeição — avulsa usa o nome informado pela
+        # cozinheira; planejada usa o prato do planejamento (nunca o nome extra).
+        nome_refeicao = r.nome_extra
+        if r.planejamento_id:
+            plan = db.query(models.Planejamento).filter(models.Planejamento.id == r.planejamento_id).first()
+            if plan:
+                card = db.query(models.CardapioItem).filter(models.CardapioItem.id == plan.cardapio_item_id).first()
+                nome_refeicao = card.nome_refeicao if card else None
         resultado.append({
             "id": r.id,
             "data_hora": r.data_hora.isoformat(),
             "tipo_refeicao": r.tipo_refeicao,
             "slot": r.slot,
             "extra": r.planejamento_id is None,
+            "nome_refeicao": nome_refeicao,
+            "nome_extra": r.nome_extra,
             "qtd_alunos": r.qtd_alunos,
             "id_usuario": r.id_usuario,
             "planejamento_id": r.planejamento_id,
@@ -1544,7 +1570,9 @@ def _status_refeicoes_do_dia(db: Session, dia: date) -> list:
                 None,
             )
         if ref:
-            prato = None
+            # 08-11: avulsa exibe o nome informado pela cozinheira no campo
+            # prato; planejada exibe o prato do planejamento vinculado.
+            prato = ref.nome_extra
             if ref.planejamento_id:
                 plan = db.query(models.Planejamento).filter(models.Planejamento.id == ref.planejamento_id).first()
                 if plan:
@@ -1632,13 +1660,30 @@ def dashboard_admin(
 
 # --- CARDÁPIO PÚBLICO (sem autenticação) ---
 
+def _slot_fallback_por_tipo(tipo_refeicao: str) -> str | None:
+    """Fallback de slot para avulsas legadas (slot NULL): primeiro slot canônico
+    cujo tipo derivado casa — mesmo critério do status por slot (obs #7)."""
+    for slot in SLOTS_PLANEJAMENTO:
+        if _derivar_tipo_slot(slot) == tipo_refeicao:
+            return slot
+    return None
+
+
 @app.get("/publico/cardapio")
 def cardapio_publico(data: date | None = None, db: Session = Depends(get_db)):
-    """Cardápio do dia para exibição pública (telas da escola), sem autenticação."""
+    """Cardápio do dia para exibição pública (telas da escola), sem autenticação.
+
+    08-11: resposta em LISTA, ordenada pela ordem canônica dos quatro slots.
+    Cada entrada traz `tipo_refeicao` (rótulo do momento de serviço = slot),
+    `nome_refeicao`, `slot`, `extra` e `ingredientes`. Refeições planejadas e
+    extras do mesmo slot COEXISTEM (sem deduplicar): a planejada vem primeiro,
+    depois as extras por id. T-08-18: apenas nome e ingredientes — sem usuário,
+    justificativas ou dados de auditoria. T-08-19: escopo limitado à data.
+    """
     data_ref = data or date.today()
     ativos = _planejamento_ativo(db, data_ref)
 
-    resultado = []
+    entradas: list[dict] = []
     for (dia_semana, tipo), entrada in sorted(ativos.items(), key=lambda kv: kv[0][1]):
         if dia_semana != data_ref.weekday():
             continue
@@ -1657,12 +1702,50 @@ def cardapio_publico(data: date | None = None, db: Session = Depends(get_db)):
                     "quantidade": r.quantidade,
                     "medida_caseira": r.medida_caseira,
                 })
-        resultado.append({
+        entradas.append({
             "tipo_refeicao": tipo,
             "nome_refeicao": prato.nome_refeicao if prato else None,
+            "slot": tipo,
+            "extra": False,
             "ingredientes": ingredientes,
         })
-    return resultado
+
+    # Refeições extras da data (08-11): nome próprio informado pela cozinheira,
+    # slot do lançamento e itens efetivamente servidos como ingredientes.
+    # Avulsas legadas sem slot caem no fallback por tipo derivado; sem slot
+    # derivável, não publicam (fora dos quatro momentos de serviço).
+    extras = db.query(models.Refeicao).filter(
+        func.date(models.Refeicao.data_hora) == data_ref.isoformat(),
+        models.Refeicao.planejamento_id.is_(None),
+    ).order_by(models.Refeicao.id).all()
+    for extra in extras:
+        slot = extra.slot or _slot_fallback_por_tipo(extra.tipo_refeicao)
+        if slot is None:
+            continue
+        itens = db.query(models.RefeicaoItem).filter(
+            models.RefeicaoItem.refeicao_id == extra.id
+        ).all()
+        ingredientes = []
+        for ri in itens:
+            item = db.query(models.Item).filter(models.Item.id == ri.item_id).first()
+            ingredientes.append({
+                "item_nome": item.nome if item else None,
+                "quantidade": ri.quantidade_ajustada,
+                "medida_caseira": ri.medida_caseira,
+            })
+        entradas.append({
+            "tipo_refeicao": slot,
+            "nome_refeicao": extra.nome_extra,
+            "slot": slot,
+            "extra": True,
+            "ingredientes": ingredientes,
+        })
+
+    # Ordenação canônica: slot em SLOTS_PLANEJAMENTO; dentro do slot a planejada
+    # (extra=False) vem primeiro e as extras por id (ordem de inserção estável).
+    ordem_slots = {s: i for i, s in enumerate(SLOTS_PLANEJAMENTO)}
+    entradas.sort(key=lambda e: (ordem_slots.get(e["slot"], len(SLOTS_PLANEJAMENTO)), e["extra"]))
+    return entradas
 
 
 # =========================================================================

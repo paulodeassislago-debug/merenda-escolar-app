@@ -211,4 +211,8 @@ class RefeicaoCreate(BaseModel):
     # configuração vigente (tipo_refeicao/qtd_alunos removidos na revisão MEAL-02)
     slot: str
     planejamento_id: int | None = None
+    # 08-11: nome da refeição extraordinária — obrigatório (não vazio) em
+    # lançamentos avulsos (planejamento_id None); rejeitado em planejadas.
+    # Limite alinhado ao campo de texto do frontend (T-08-17).
+    nome_extra: str | None = Field(default=None, max_length=120)
     itens: list[RefeicaoItemRequest] = Field(min_length=1)
