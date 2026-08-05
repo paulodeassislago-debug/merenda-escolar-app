@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, fetchJson } from '../api';
 import { useAuth } from '../auth-context';
-import type { Conversao, Item, PlanejamentoEntrada, ReceitaItem } from '../types';
+import type { AlunosPorPeriodo, Conversao, Item, PlanejamentoEntrada, ReceitaItem } from '../types';
 import { SLOTS_REFEICAO } from './admin/constants';
 import './PainelCozinha.css';
 
@@ -56,11 +56,6 @@ function mensagemDeErro(erro: unknown, fallback: string): string {
   return fallback;
 }
 
-function tipoParaLancamento(slot: SlotRefeicao): 'Lanche' | 'Almoço' | 'Janta' {
-  if (slot === 'Lanche da Manhã' || slot === 'Lanche da Tarde') return 'Lanche';
-  return slot;
-}
-
 function medidaInicial(receita: ReceitaItem, conversoes: Conversao[]): string {
   const equivalente = conversoes.find(
     (conversao) => normalizarMedida(conversao.medida_caseira) === normalizarMedida(receita.medida_caseira),
@@ -74,10 +69,6 @@ function itemTemDivergencia(item: IngredienteRascunho): boolean {
     || item.quantidadeAtual !== item.quantidadeEsperada;
 }
 
-function quantidadeAlunosValida(quantidade: number): boolean {
-  return Number.isInteger(quantidade) && quantidade > 0;
-}
-
 export default function PainelCozinha() {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -87,7 +78,7 @@ export default function PainelCozinha() {
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
   const [entradaSelecionada, setEntradaSelecionada] = useState<PlanejamentoEntrada | null>(null);
   const [ingredientes, setIngredientes] = useState<IngredienteRascunho[]>([]);
-  const [qtdAlunos, setQtdAlunos] = useState(0);
+  const [alunosConfig, setAlunosConfig] = useState<{ manha: number; tarde: number; noite: number } | null>(null);
   const [carregandoReceita, setCarregandoReceita] = useState(false);
   const [erroReceita, setErroReceita] = useState<string | null>(null);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
@@ -152,6 +143,31 @@ export default function PainelCozinha() {
     return () => window.clearTimeout(focoInicial);
   }, [entradaSelecionada]);
 
+  // Configuração de alunos por período (D-14): a cozinheira tem leitura (08-07).
+  // 404 (ainda não configurada) ou erro de rede → null = estado explícito (D-19).
+  useEffect(() => {
+    let cancelado = false;
+    void fetchJson<AlunosPorPeriodo>('/alunos-por-periodo')
+      .then((dados) => {
+        if (!cancelado) {
+          setAlunosConfig({ manha: dados.manha, tarde: dados.tarde, noite: dados.noite });
+        }
+      })
+      .catch(() => {
+        if (!cancelado) setAlunosConfig(null);
+      });
+    return () => { cancelado = true; };
+  }, []);
+
+  // D-15: total de cada slot derivado dos períodos configurados pelo admin.
+  const totalPorSlot = (slot: SlotRefeicao): number | null => {
+    if (!alunosConfig) return null;
+    if (slot === 'Lanche da Manhã') return alunosConfig.manha;
+    if (slot === 'Almoço') return alunosConfig.manha + alunosConfig.tarde;
+    if (slot === 'Lanche da Tarde') return alunosConfig.tarde;
+    return alunosConfig.noite; // Janta
+  };
+
   const carregarReceita = async (entrada: PlanejamentoEntrada, alunos: number) => {
     const requestId = receitaRequestId.current + 1;
     receitaRequestId.current = requestId;
@@ -208,23 +224,25 @@ export default function PainelCozinha() {
     entradaSelecionadaAtual.current = entrada.id;
     setEntradaSelecionada(entrada);
     setIngredientes([]);
-    setQtdAlunos(0);
     setItemParaAdicionar('');
     setErroReceita(null);
     setErroEnvio(null);
     setReceitaCarregada(false);
     setConfirmarDescarte(false);
+    const total = totalPorSlot(entrada.tipo_refeicao as SlotRefeicao);
+    if (total !== null) {
+      void carregarReceita(entrada, total);
+    }
   };
 
   const rascunhoTemAlteracoes = (): boolean => {
-    return qtdAlunos > 0 && (ingredientes.length > 0 || itemParaAdicionar !== '');
+    return ingredientes.length > 0 || itemParaAdicionar !== '';
   };
 
   const fecharEditorAgora = () => {
     entradaSelecionadaAtual.current = null;
     setEntradaSelecionada(null);
     setIngredientes([]);
-    setQtdAlunos(0);
     setItemParaAdicionar('');
     setErroReceita(null);
     setErroEnvio(null);
@@ -282,36 +300,6 @@ export default function PainelCozinha() {
     setIngredientes((atuais) => atuais.map((item, itemIndex) => (
       itemIndex === index ? { ...item, justificativa: valor } : item
     )));
-  };
-
-  const atualizarQtdAlunos = (valor: string) => {
-    const quantidade = valor === '' ? 0 : Number(valor);
-    setQtdAlunos(quantidade);
-    setErroEnvio(null);
-
-    if (!quantidadeAlunosValida(quantidade)) {
-      receitaRequestId.current += 1;
-      setIngredientes([]);
-      setReceitaCarregada(false);
-      setErroReceita(null);
-      return;
-    }
-
-    if (entradaSelecionada && !receitaCarregada) {
-      void carregarReceita(entradaSelecionada, quantidade);
-      return;
-    }
-
-    setIngredientes((atuais) => atuais.map((item) => {
-      if (item.origem !== 'receita') return item;
-      const quantidadeEsperada = item.quantidadeBase * quantidade;
-      return {
-        ...item,
-        quantidadeEsperada,
-        quantidadeAtual: item.removido ? 0 : quantidadeEsperada,
-        justificativa: item.removido ? item.justificativa : '',
-      };
-    }));
   };
 
   const alternarRemocao = (index: number) => {
@@ -391,7 +379,7 @@ export default function PainelCozinha() {
     const dataNoEnvio = dataReferencia;
     const entradaIdNoEnvio = entradaSelecionada.id;
 
-    const qtdValida = quantidadeAlunosValida(qtdAlunos);
+    const configValida = totalPorSlot(entradaSelecionada.tipo_refeicao as SlotRefeicao) !== null;
     const ingredientesValidos = ingredientes.length > 0 && ingredientes.every(
       (item) => item.quantidadeAtual >= 0 && Number.isFinite(item.quantidadeAtual)
         && (item.removido || item.origem === 'receita' || item.quantidadeAtual > 0)
@@ -400,11 +388,11 @@ export default function PainelCozinha() {
     const justificativasValidas = ingredientes.every(
       (item) => !itemTemDivergencia(item) || item.justificativa.trim() !== '',
     );
-    if (!qtdValida || !ingredientesValidos || !justificativasValidas) {
+    if (!configValida || !ingredientesValidos || !justificativasValidas) {
       setErroEnvio(
         !justificativasValidas
           ? 'Informe a justificativa de cada ingrediente com quantidade alterada antes de confirmar.'
-          : 'Informe uma quantidade inteira e positiva de alunos e escolha uma conversão cadastrada para cada ingrediente.',
+          : 'A configuração de alunos por período ainda não foi definida pelo admin.',
       );
       return;
     }
@@ -415,9 +403,8 @@ export default function PainelCozinha() {
       await fetchJson<{ id: number; mensagem: string }>('/refeicoes', {
         method: 'POST',
         body: JSON.stringify({
+          slot: entradaSelecionada.tipo_refeicao,
           planejamento_id: entradaSelecionada.id,
-          tipo_refeicao: tipoParaLancamento(entradaSelecionada.tipo_refeicao as SlotRefeicao),
-          qtd_alunos: qtdAlunos,
           itens: ingredientes.map((item) => ({
             item_id: item.itemId,
             quantidade: item.quantidadeAtual,
@@ -449,6 +436,9 @@ export default function PainelCozinha() {
   };
 
   const entradasDoDia = planejamento.filter((entrada) => entrada.dia_semana === diaSemanaLocal(dataReferencia));
+  const totalDoSlot = entradaSelecionada
+    ? totalPorSlot(entradaSelecionada.tipo_refeicao as SlotRefeicao)
+    : null;
 
   return (
     <div className="cozinha-container">
@@ -573,39 +563,31 @@ export default function PainelCozinha() {
             )}
 
             <form onSubmit={handleFinalizar}>
-                <div className="form-grid">
-                  <div className="campo-formulario campo-alunos">
-                    <label htmlFor="qtd-alunos">Quantos alunos foram atendidos?</label>
-                    <input
-                      id="qtd-alunos"
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={qtdAlunos || ''}
-                      onChange={(evento) => atualizarQtdAlunos(evento.target.value)}
-                      disabled={salvando}
-                      aria-describedby="ajuda-alunos"
-                     />
-                    <span id="ajuda-alunos" className="campo-ajuda">Informe um número inteiro positivo para carregar a receita.</span>
-                  </div>
-                </div>
-
-                {!quantidadeAlunosValida(qtdAlunos) && (
-                  <p className="estado-vazio">Informe primeiro a quantidade de alunos para carregar a receita.</p>
-                )}
-                {quantidadeAlunosValida(qtdAlunos) && carregandoReceita && <p className="estado-loading" role="status" aria-live="polite">Carregando receita…</p>}
-                {quantidadeAlunosValida(qtdAlunos) && erroReceita && (
-                  <div className="estado-erro" role="alert">
-                    <p>{erroReceita}</p>
-                    {erroReceita === 'Sua sessão expirou. Entre novamente.' ? (
-                      <button type="button" className="botao-secundario" onClick={handleSessaoExpirada}>Entrar novamente</button>
-                    ) : (
-                      <button type="button" className="botao-secundario" onClick={() => void carregarReceita(entradaSelecionada, qtdAlunos)}>Tentar novamente</button>
+                {totalDoSlot === null ? (
+                  <p className="estado-vazio">
+                    A configuração de alunos por período ainda não foi definida pelo admin.
+                  </p>
+                ) : (
+                  <>
+                    <p className="ajuda-auditoria">
+                      Receita calculada para {totalDoSlot} alunos, conforme a configuração de alunos por período.
+                    </p>
+                    {carregandoReceita && <p className="estado-loading" role="status" aria-live="polite">Carregando receita…</p>}
+                    {erroReceita && (
+                      <div className="estado-erro" role="alert">
+                        <p>{erroReceita}</p>
+                        {erroReceita === 'Sua sessão expirou. Entre novamente.' ? (
+                          <button type="button" className="botao-secundario" onClick={handleSessaoExpirada}>Entrar novamente</button>
+                        ) : (
+                          <button type="button" className="botao-secundario" onClick={() => void carregarReceita(entradaSelecionada, totalDoSlot)}>Tentar novamente</button>
+                        )}
+                      </div>
                     )}
-                  </div>
+                    {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
+                  </>
                 )}
-                {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
-                {quantidadeAlunosValida(qtdAlunos) && receitaCarregada && !carregandoReceita && !erroReceita && (
+
+                {totalDoSlot !== null && receitaCarregada && !carregandoReceita && !erroReceita && (
                   <>
                     <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
                     <div className="adicionar-ingrediente">
@@ -642,7 +624,7 @@ export default function PainelCozinha() {
                               {item.origem === 'receita' ? (
                                 <>
                                   <p>Quantidade-base: {item.quantidadeBase} {item.medidaOriginal}</p>
-                                  <p>Esperada para {qtdAlunos} alunos: {item.quantidadeEsperada} {item.medidaOriginal}</p>
+                                  <p>Esperada para {totalDoSlot} alunos: {item.quantidadeEsperada} {item.medidaOriginal}</p>
                                 </>
                               ) : <p>Ingrediente fora da receita planejada.</p>}
                             </div>
@@ -706,7 +688,7 @@ export default function PainelCozinha() {
 
                 <footer className="modal-acoes">
                   <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
-                  <button type="submit" className="botao-primario" disabled={salvando || !quantidadeAlunosValida(qtdAlunos) || !receitaCarregada || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
+                  <button type="submit" className="botao-primario" disabled={salvando || totalDoSlot === null || !receitaCarregada || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
                     {salvando ? 'Registrando…' : 'Confirmar refeição e dar baixa'}
                   </button>
                 </footer>
