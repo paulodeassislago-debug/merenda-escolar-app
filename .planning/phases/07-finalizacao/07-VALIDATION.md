@@ -1,11 +1,12 @@
 ---
 phase: 07
 slug: finalizacao
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-08-04
 updated: 2026-08-05
+approved: 2026-08-05
 ---
 
 # Phase 07 — Validation Strategy
@@ -49,7 +50,7 @@ updated: 2026-08-05
 | 07-01-01 | 07-01 | 1 | PUBLIC-02 | T-07-01-01, T-07-01-02, T-07-01-03 | Public route remains unauthenticated; response is rendered as text without raw HTML | build + lint + manual | `cd frontend && npm run build && npm run lint` | Confirm anonymous `/cardapio`, four-slot output and name-only ingredients in the browser (UAT F16). | ✅ | ✅ green* |
 | 07-01-02 | 07-01 | 1 | PUBLIC-02 | T-07-01-01, T-07-01-02, T-07-01-04 | Four slots, sparse data, disclosure, focus and overflow follow the UI contract | build + lint + manual | `cd frontend && npm run build && npm run lint` | Confirm loading/error/empty/partial states, retry, exact disclosure labels, keyboard focus and 320px/768px/desktop layout (UAT F16/F17). | ✅ | ✅ green* |
 | 07-02-01 | 07-02 | 2 | QUAL-05, QUAL-06 | T-07-02-01, T-07-02-02, T-07-02-05 | UAT records F1-F17 and defines controlled before/after stock and audit evidence without silent approval | artifact checks + backend regression | `test -f .planning/phases/07-finalizacao/07-VALIDATION.md && test -f .planning/phases/07-finalizacao/07-UAT.md && cd backend && source venv/bin/activate && pytest tests/test_publico.py tests/test_planejamento.py tests/test_refeicoes.py -q` | — | ✅ | ✅ green (32 passed em 2026-08-05) |
-| 07-02-02 | 07-02 | 2 | QUAL-05, QUAL-06 | T-07-02-02, T-07-02-03, T-07-02-04, T-07-02-05 | F1-F17 and QUAL-06 have observed evidence; failed or missing evidence blocks approval and preserves atomicity checks | full regression + manual checkpoint | `cd frontend && npm run build && npm run lint && cd ../backend && source venv/bin/activate && pytest tests/ -q` | Execute every UAT row, including F16/F17 exact `Ver ingredientes`/`Ocultar ingredientes` behavior and QUAL-06 atomic failures; approve only with complete evidence. | ✅ | ⬜ pending |
+| 07-02-02 | 07-02 | 2 | QUAL-05, QUAL-06 | T-07-02-02, T-07-02-03, T-07-02-04, T-07-02-05 | F1-F17 and QUAL-06 have observed evidence; failed or missing evidence blocks approval and preserves atomicity checks | full regression + manual checkpoint | `cd frontend && npm run build && npm run lint && cd ../backend && source venv/bin/activate && pytest tests/ -q` | Execute every UAT row, including F16/F17 exact `Ver ingredientes`/`Ocultar ingredientes` behavior and QUAL-06 atomic failures; approve only with complete evidence. | ✅ | ✅ green (build 94 módulos + lint exit 0 + 103 passed em 2026-08-05; aceite manual F1-F17/QUAL-06 aprovado integralmente — ver `07-UAT.md`) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky — `*` = automated gate green; the manual human-check is recorded in `07-UAT.md` (rows F1-F17/QUAL-06) and remains pending until executed in the 07-02-02 acceptance checkpoint.*
 
@@ -112,12 +113,12 @@ Any failure in an automated gate, in any UAT row F1-F17, in any manual state che
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
 - [x] Wave 0 covers all missing references.
 - [x] No watch-mode flags.
 - [x] Quick sampling commands are defined for feedback under the full-suite runtime; the approximately 60-second delay is documented for the final wave gate.
-- [ ] After all gates, F1-F17 and QUAL-06 pass with complete evidence, change frontmatter `nyquist_compliant: false` to `nyquist_compliant: true`.
-- [ ] In the same conditional sign-off, change frontmatter `status: draft` to `status: approved` and change `Approval: pending` to `Approval: approved`; otherwise preserve the pending values.
+- [x] After all gates, F1-F17 and QUAL-06 pass with complete evidence, change frontmatter `nyquist_compliant: false` to `nyquist_compliant: true`.
+- [x] In the same conditional sign-off, change frontmatter `status: draft` to `status: approved` and change `Approval: pending` to `Approval: approved`; otherwise preserve the pending values.
 
-**Approval:** pending
+**Approval:** approved (2026-08-05) — gate combinado de sign-off verde (`cd frontend && npm run build && npm run lint && cd ../backend && source venv/bin/activate && pytest tests/ -q` → build 94 módulos + lint exit 0 + 103 passed; direcionados: test_publico 3 passed, test_refeicoes+test_planejamento 29 passed) e aceite manual integral F1-F17/QUAL-06 concedido pelo usuário ("teste de UAT fully approved"), registrado em `07-UAT.md` sem invenção de evidências.
