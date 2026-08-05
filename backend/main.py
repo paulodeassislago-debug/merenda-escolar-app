@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -674,7 +674,7 @@ def _serializar_planejamento(db: Session, entrada: models.Planejamento) -> dict:
 
 def _consumo_slot(
     db: Session,
-    slot_entrada: models.Planejamento,
+    cardapio_item_id: int,
     total_alunos: int | None,
 ) -> tuple[dict[int, float], set[int]] | None:
     """Consumo por item (unidade oficial kg/L) do slot planejado: ∑(receita × alunos).
@@ -686,7 +686,7 @@ def _consumo_slot(
     if total_alunos is None:
         return None
     receitas = db.query(models.Receita).filter(
-        models.Receita.cardapio_item_id == slot_entrada.cardapio_item_id
+        models.Receita.cardapio_item_id == cardapio_item_id
     ).all()
     consumo: dict[int, float] = {}
     nao_avaliaveis: set[int] = set()
@@ -705,14 +705,50 @@ def _consumo_slot(
     return consumo, nao_avaliaveis
 
 
+def _parse_rascunho(db: Session, rascunho: list[str] | None) -> dict[tuple[int, str], int]:
+    """Pré-visualização (obs #4/D-18): sobreposições `(dia, slot) -> cardapio_item_id`.
+
+    Formato de cada entrada: `"{dia}|{slot}|{cardapio_item_id}"`. Entradas
+    malformadas, com slot inválido ou prato inexistente são IGNORADAS (T-08-14:
+    pré-visualização nunca bloqueia, nunca persiste). Slot sem entrada de rascunho
+    permanece com o planejamento vigente.
+    """
+    if not rascunho:
+        return {}
+    ids_pratos = {cid for (cid,) in db.query(models.CardapioItem.id).all()}
+    mapa: dict[tuple[int, str], int] = {}
+    for entrada in rascunho:
+        partes = entrada.split("|")
+        if len(partes) != 3:
+            continue
+        dia_s, slot, item_s = partes
+        try:
+            dia = int(dia_s)
+            cardapio_item_id = int(item_s)
+        except ValueError:
+            continue
+        if dia < 0 or dia > 6 or slot not in SLOTS_PLANEJAMENTO:
+            continue
+        if cardapio_item_id not in ids_pratos:
+            continue
+        mapa[(dia, slot)] = cardapio_item_id
+    return mapa
+
+
 def _simular_semana(
     db: Session,
     segunda: date,
     ate_dia: int | None = None,
     referencia: date | None = None,
+    rascunho: list[str] | None = None,
 ) -> dict:
     """Simulação cumulativa da semana (D-17): segunda (0) → domingo (6), slots na
     ordem de `SLOTS_PLANEJAMENTO`. `ate_dia` limita a simulação (avisos do POST).
+
+    Ruptura é granular por SLOT (obs #5): cada dia responde `slots[].rupturas`
+    apenas no slot em que o saldo corrente do item fica negativo pela primeira vez
+    no dia (item já negativo em slot anterior do mesmo dia não repete). `rascunho`
+    sobrepõe o planejado para pré-visualização sem salvar (obs #4).
 
     Config de alunos ausente → `configurado: false` com tudo zerado (não levanta).
     """
@@ -728,6 +764,7 @@ def _simular_semana(
 
     data_referencia = referencia or (segunda + timedelta(days=ate_dia if ate_dia is not None else 6))
     ativos = _planejamento_ativo(db, data_referencia)
+    rascunho_map = _parse_rascunho(db, rascunho)
     itens_catalogo = db.query(models.Item).order_by(models.Item.id).all()
     saldo_corrente = {i.id: i.saldo_atual for i in itens_catalogo}
     consumo_semana: dict[int, float] = {i.id: 0.0 for i in itens_catalogo}
@@ -736,39 +773,44 @@ def _simular_semana(
     dias: list[dict] = []
 
     for dia in range(ate_dia + 1 if ate_dia is not None else 7):
-        consumo_dia: dict[int, float] = {}
-        rupturas_dia: list[dict] = []
+        slots_dia: list[dict] = []
+        ja_negativo_no_dia: set[int] = set()
         for slot in SLOTS_PLANEJAMENTO:
-            entrada = ativos.get((dia, slot))
-            if not entrada:
-                continue
+            cardapio_item_id = rascunho_map.get((dia, slot))
+            if cardapio_item_id is None:
+                entrada = ativos.get((dia, slot))
+                if not entrada:
+                    continue
+                cardapio_item_id = entrada.cardapio_item_id
             total_alunos = _total_por_slot(db, slot)
-            resultado = _consumo_slot(db, entrada, total_alunos)
+            resultado = _consumo_slot(db, cardapio_item_id, total_alunos)
             if resultado is None:
                 continue
             consumo, nao_av = resultado
             nao_avaliaveis.update(nao_av)
+            rupturas_slot: list[dict] = []
             for item_id, qtd in consumo.items():
-                consumo_dia[item_id] = consumo_dia.get(item_id, 0.0) + qtd
                 consumo_semana[item_id] += qtd
                 saldo_corrente[item_id] -= qtd
                 if saldo_corrente[item_id] < 0 and primeiro_dia_ruptura[item_id] is None:
                     primeiro_dia_ruptura[item_id] = dia
-        for item_id in sorted(consumo_dia):
-            item = next(i for i in itens_catalogo if i.id == item_id)
-            if saldo_corrente[item_id] < 0:
-                rupturas_dia.append({
-                    "item_id": item_id,
-                    "nome": item.nome,
-                    "faltando": -saldo_corrente[item_id],
-                    "unidade_oficial": item.unidade_oficial,
-                })
-        if consumo_dia:
+                # Registra a ruptura apenas no slot em que o saldo fica negativo
+                # pela primeira vez no dia (obs #5) — sem repetir nos slots seguintes.
+                if saldo_corrente[item_id] < 0 and item_id not in ja_negativo_no_dia:
+                    ja_negativo_no_dia.add(item_id)
+                    item = next(i for i in itens_catalogo if i.id == item_id)
+                    rupturas_slot.append({
+                        "item_id": item_id,
+                        "nome": item.nome,
+                        "faltando": -saldo_corrente[item_id],
+                        "unidade_oficial": item.unidade_oficial,
+                    })
+            slots_dia.append({"slot": slot, "rupturas": rupturas_slot})
+        if slots_dia:
             dias.append({
                 "dia": (segunda + timedelta(days=dia)).isoformat(),
                 "dia_semana": dia,
-                "consumo": {str(k): v for k, v in consumo_dia.items()},
-                "rupturas": rupturas_dia,
+                "slots": slots_dia,
             })
 
     itens = []
@@ -852,17 +894,20 @@ def consultar_planejamento(
 @app.get("/planejamento/projecao")
 def projecao_planejamento(
     data: date | None = None,
+    rascunho: list[str] | None = Query(None),
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
 ):
     """Projeção cumulativa de estoque da semana (D-17/D-20 — cozinheira não vê).
 
     Simula dia a dia (segunda→domingo, slots em ordem) o saldo corrente por item.
-    Contrato consumido pela 08-09: configurado/dias/itens/resumo.
+    `rascunho` (obs #4/D-18) sobrepõe slots para pré-visualização sem salvar:
+    entradas malformadas/inexistentes são ignoradas (T-08-14) — nunca persiste.
+    Contrato consumido pela 08-09: configurado/dias/itens/resumo; dias[].slots[].rupturas.
     """
     data_ref = data or date.today()
     segunda = data_ref - timedelta(days=data_ref.weekday())
-    simulacao = _simular_semana(db, segunda, referencia=data_ref)
+    simulacao = _simular_semana(db, segunda, referencia=data_ref, rascunho=rascunho)
     simulacao["data_ref"] = data_ref.isoformat()
     return simulacao
 
