@@ -1130,16 +1130,19 @@ def lancar_refeicao_v2(
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("cozinheira")),
 ):
-    """Lança uma refeição: converte medidas caseiras, deduz o estoque e audita ajustes.
+    """Lança uma refeição a partir do slot (D-16b): o backend deriva o tipo e o
+    total de alunos da configuração vigente — a cozinheira não envia qtd_alunos.
 
-    Se `planejamento_id` for informado, a receita é escalada pelo número de alunos.
-    Quantidades divergentes da receita escalada (ou itens fora da receita) exigem justificativa.
+    Converte medidas caseiras, deduz o estoque (bloqueia se insuficiente) e audita
+    ajustes divergentes da receita escalada (justificativa obrigatória).
     """
-    if dados.tipo_refeicao not in TIPOS_REFEICAO_VALIDOS:
+    tipo = _derivar_tipo_slot(dados.slot)
+    if tipo not in TIPOS_REFEICAO_VALIDOS:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipo de refeição inválido. Use: {', '.join(TIPOS_REFEICAO_VALIDOS)}",
+            detail=f"Slot de refeição inválido. Use: {', '.join(SLOTS_PLANEJAMENTO)}",
         )
+    qtd_alunos = _total_por_slot(db, dados.slot)
 
     # Receita de referência (quando ligada a um planejamento)
     receita_map = {}
@@ -1174,12 +1177,12 @@ def lancar_refeicao_v2(
 
         # Auditoria: a receita-base é por aluno; divergência da receita escalada exige justificativa.
         receita_item = receita_map.get(item_req.item_id)
-        quantidade_esperada = receita_item.quantidade * dados.qtd_alunos if receita_item else None
+        quantidade_esperada = receita_item.quantidade * qtd_alunos if receita_item else None
         if dados.planejamento_id is not None:
             divergente = receita_item is None or abs(quantidade_esperada - item_req.quantidade) > 1e-9
             if divergente and not item_req.justificativa:
                 motivo = "não faz parte da receita planejada" if receita_item is None else \
-                    f"quantidade diverge da receita planejada ({quantidade_esperada} {receita_item.medida_caseira} para {dados.qtd_alunos} alunos)"
+                    f"quantidade diverge da receita planejada ({quantidade_esperada} {receita_item.medida_caseira} para {qtd_alunos} alunos)"
                 raise HTTPException(
                     status_code=400,
                     detail=f"Item '{item.nome}' {motivo} — justificativa obrigatória",
@@ -1188,9 +1191,9 @@ def lancar_refeicao_v2(
         preparados.append((item, item_req, qtd_oficial, receita_item, quantidade_esperada))
 
     refeicao = models.Refeicao(
-        tipo_refeicao=dados.tipo_refeicao,
+        tipo_refeicao=tipo,
         id_usuario=usuario.id,
-        qtd_alunos=dados.qtd_alunos,
+        qtd_alunos=qtd_alunos,
         planejamento_id=dados.planejamento_id,
     )
     db.add(refeicao)
@@ -1209,7 +1212,7 @@ def lancar_refeicao_v2(
 
     db.commit()
     db.refresh(refeicao)
-    return {"id": refeicao.id, "mensagem": f"Refeição servida a {dados.qtd_alunos} alunos! Estoque abatido com sucesso."}
+    return {"id": refeicao.id, "mensagem": f"Refeição servida a {qtd_alunos} alunos! Estoque abatido com sucesso."}
 
 
 @app.get("/refeicoes")

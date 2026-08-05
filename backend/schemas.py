@@ -205,7 +205,8 @@ class RefeicaoItemRequest(BaseModel):
 class RefeicaoCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tipo_refeicao: str
-    qtd_alunos: int = Field(gt=0)
+    # R-5/D-16b: payload por slot — backend deriva tipo e qtd_alunos da
+    # configuração vigente (tipo_refeicao/qtd_alunos removidos na revisão MEAL-02)
+    slot: str
     planejamento_id: int | None = None
     itens: list[RefeicaoItemRequest] = Field(min_length=1)
