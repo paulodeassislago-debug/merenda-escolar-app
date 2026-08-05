@@ -354,8 +354,12 @@ export default function Planejamento() {
                         (p) => p.tipo_refeicao === tipoParaFiltro,
                       );
 
-                      // Projeção (D-19): badge de déficit projetado no dia
-                      const diaProjecao = projecao?.configurado ? projecao.dias[diaIdx] : undefined;
+                      // Projeção (D-19): badge de déficit projetado no dia.
+                      // WR-01: o backend só emite dias COM consumo (dias esparso) — o
+                      // lookup é por `dia_semana`, nunca posicional (dias[diaIdx]).
+                      const diaProjecao = projecao?.configurado
+                        ? projecao.dias.find((d) => d.dia_semana === diaIdx)
+                        : undefined;
 
                       return (
                         <td key={slot} className="planejamento-celula">
