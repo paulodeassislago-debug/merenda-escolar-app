@@ -61,6 +61,9 @@ export default function CardapioPublico() {
     setCarregando(true);
     setErro(null);
     setRefeicoes([]);
+    // Redefine o espelho do <details> nativo: após erro + retry, os elementos
+    // re-montam fechados e o rótulo precisa voltar a "Ver ingredientes" (WR-03).
+    setIngredientesAbertos({});
     fetchJson<RefeicaoPublica[]>('/publico/cardapio')
       .then((resposta) => setRefeicoes(Array.isArray(resposta) ? resposta : []))
       .catch(() => setErro('Não foi possível carregar o cardápio de hoje. Tente novamente.'))
