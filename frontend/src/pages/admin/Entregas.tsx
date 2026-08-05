@@ -91,6 +91,18 @@ export default function Entregas() {
   const [erroNovoFornecedor, setErroNovoFornecedor] = useState<string | null>(null);
   const modalFornecedorRef = useRef<HTMLDivElement>(null);
 
+  // Modal inline de item (D-11/D-12 — preserva o rascunho; saldo vem da linha da entrega)
+  const [modalItem, setModalItem] = useState<{ linhaIdx: number } | null>(null);
+  const [nomeNovoItem, setNomeNovoItem] = useState('');
+  const [unidadeOficialNovoItem, setUnidadeOficialNovoItem] = useState('KG');
+  const [unidadeInternaNovoItem, setUnidadeInternaNovoItem] = useState('KG');
+  const [fatorConversaoNovoItem, setFatorConversaoNovoItem] = useState('1');
+  const [limiarNovoItem, setLimiarNovoItem] = useState('5.0');
+  const [salvandoItem, setSalvandoItem] = useState(false);
+  const [erroNovoItem, setErroNovoItem] = useState<string | null>(null);
+  const modalItemRef = useRef<HTMLDivElement>(null);
+  const selectItemRef = useRef<HTMLSelectElement | null>(null);
+
   // Justificativa
   const [justificativaPendente, setJustificativaPendente] = useState<{
     index: number;
@@ -318,6 +330,118 @@ export default function Entregas() {
       );
     } finally {
       setSalvandoFornecedor(false);
+    }
+  };
+
+  // --- Item — modal inline de cadastro (D-11/D-12) ---
+
+  const abrirModalItem = (linhaIdx: number, select: HTMLSelectElement) => {
+    setNomeNovoItem('');
+    setUnidadeOficialNovoItem('KG');
+    setUnidadeInternaNovoItem('KG');
+    setFatorConversaoNovoItem('1');
+    setLimiarNovoItem('5.0');
+    setErroNovoItem(null);
+    selectItemRef.current = select;
+    setModalItem({ linhaIdx });
+  };
+
+  const fecharModalItem = () => {
+    // Fechar/cancelar não altera nenhum estado do rascunho (D-12)
+    setModalItem(null);
+    selectItemRef.current?.focus();
+  };
+
+  const handleModalItemKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      fecharModalItem();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+
+    const focoPossivel = modalItemRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    );
+    if (!focoPossivel || focoPossivel.length === 0) return;
+    const primeiro = focoPossivel[0];
+    const ultimo = focoPossivel[focoPossivel.length - 1];
+    if (e.shiftKey && document.activeElement === primeiro) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && document.activeElement === ultimo) {
+      e.preventDefault();
+      primeiro.focus();
+    }
+  };
+
+  const salvarNovoItem = async () => {
+    setErroNovoItem(null);
+    if (nomeNovoItem.trim() === '') {
+      setErroNovoItem('Informe o nome do item.');
+      return;
+    }
+
+    const unidadeNorm = unidadeOficialNovoItem.trim().toUpperCase();
+    const limiarNumero = Number(limiarNovoItem);
+    if (!(limiarNumero > 0)) {
+      setErroNovoItem('O limiar de baixo estoque deve ser maior que zero.');
+      return;
+    }
+    if (unidadeNorm !== 'KG' && unidadeNorm !== 'L') {
+      const fatorNumero = Number(fatorConversaoNovoItem);
+      if (!(fatorNumero > 0)) {
+        setErroNovoItem('Informe o fator de conversão (maior que zero).');
+        return;
+      }
+    }
+
+    const linhaIdx = modalItem?.linhaIdx;
+    if (linhaIdx === undefined) return;
+
+    setSalvandoItem(true);
+    try {
+      const novo = await fetchJson<Item>('/itens/inline', {
+        method: 'POST',
+        body: JSON.stringify({
+          nome: nomeNovoItem.trim(),
+          unidade_oficial: unidadeOficialNovoItem.trim(),
+          unidade_interna: unidadeNorm === 'KG' || unidadeNorm === 'L' ? undefined : unidadeInternaNovoItem,
+          fator_conversao: unidadeNorm === 'KG' || unidadeNorm === 'L' ? undefined : Number(fatorConversaoNovoItem),
+          limiar: limiarNumero,
+        }),
+      });
+
+      // Item novo entra no catálogo local (selects futuros da sessão)
+      setItens((prev) => (prev.some((i) => i.id === novo.id) ? prev : [...prev, novo]));
+
+      // Vincula o item à linha que originou a ação, SEM perder o rascunho (D-12)
+      setLinhas((prev) =>
+        prev.map((l, i) =>
+          i === linhaIdx
+            ? {
+                ...l,
+                itemId: novo.id,
+                unidade: l.unidadeNf?.trim() || novo.unidade_oficial,
+                // Item novo ainda não tem conversões cadastradas
+                fatorConversao: fatorParaUnidade(novo, l.unidadeNf?.trim() || novo.unidade_oficial, []),
+              }
+            : l,
+        ),
+      );
+
+      // Não confirma a entrega — o usuário continua revisando quantidade/unidade/ação
+      setModalItem(null);
+      selectItemRef.current?.focus();
+    } catch (err) {
+      // Modal permanece aberto com o rascunho do formulário intacto
+      setErroNovoItem(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao cadastrar o item. Tente novamente.',
+      );
+    } finally {
+      setSalvandoItem(false);
     }
   };
 
@@ -1119,9 +1243,14 @@ export default function Entregas() {
                         <select
                           className="form-input"
                           value={linha.itemId ?? ''}
-                          onChange={(e) =>
-                            atualizarItemLinha(index, Number(e.target.value))
-                          }
+                          onChange={(e) => {
+                            if (e.target.value === '__novo__') {
+                              // D-11: 'Cadastrar novo item' abre o modal — a linha não é limpa
+                              abrirModalItem(index, e.target);
+                              return;
+                            }
+                            atualizarItemLinha(index, Number(e.target.value));
+                          }}
                           disabled={linha.removida}
                         >
                           <option value="" disabled>
@@ -1132,6 +1261,9 @@ export default function Entregas() {
                               {item.nome}
                             </option>
                           ))}
+                          {origem === 'xml' && !linha.itemId && (
+                            <option value="__novo__">Cadastrar novo item</option>
+                          )}
                         </select>
                         {naoReconhecido && (
                           <span className="helper-amarelo">
@@ -1478,6 +1610,158 @@ export default function Entregas() {
                 disabled={salvandoFornecedor}
               >
                 {salvandoFornecedor ? 'Salvando…' : 'Salvar fornecedor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* Modal inline de item (D-11/D-12 — preserva o rascunho da entrega) */}
+      {/* ================================================================= */}
+      {modalItem && (
+        <div className="modal-overlay">
+          <div
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-item-titulo"
+            ref={modalItemRef}
+            onKeyDown={handleModalItemKeyDown}
+          >
+            <div className="modal-header">
+              <h2 id="modal-item-titulo">Cadastrar novo item</h2>
+              <button
+                type="button"
+                className="btn-fechar"
+                onClick={fecharModalItem}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="form-group">
+                <label htmlFor="novo-item-nome">Nome</label>
+                <input
+                  id="novo-item-nome"
+                  type="text"
+                  className="form-input"
+                  value={nomeNovoItem}
+                  onChange={(e) => setNomeNovoItem(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="novo-item-unidade">Unidade oficial</label>
+                <input
+                  id="novo-item-unidade"
+                  type="text"
+                  list="novo-item-unidades-sugeridas"
+                  className="form-input"
+                  value={unidadeOficialNovoItem}
+                  onChange={(e) => setUnidadeOficialNovoItem(e.target.value)}
+                  required
+                />
+                <datalist id="novo-item-unidades-sugeridas">
+                  {UNIDADES_SUGERIDAS.map((u) => (
+                    <option key={u} value={u} />
+                  ))}
+                </datalist>
+              </div>
+
+              {unidadeOficialNovoItem.trim().toUpperCase() !== 'KG' &&
+                unidadeOficialNovoItem.trim().toUpperCase() !== 'L' && (
+                  <>
+                    <div className="form-group">
+                      <label>Unidade interna do estoque</label>
+                      <div className="radio-group">
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="novo-item-unidade-interna"
+                            value="KG"
+                            checked={unidadeInternaNovoItem === 'KG'}
+                            onChange={() => setUnidadeInternaNovoItem('KG')}
+                          />
+                          KG
+                        </label>
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="novo-item-unidade-interna"
+                            value="L"
+                            checked={unidadeInternaNovoItem === 'L'}
+                            onChange={() => setUnidadeInternaNovoItem('L')}
+                          />
+                          L
+                        </label>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="novo-item-fator">
+                        Fator de conversão — 1{' '}
+                        {unidadeOficialNovoItem.trim() || 'unidade'} equivale
+                        a X {unidadeInternaNovoItem}
+                      </label>
+                      <input
+                        id="novo-item-fator"
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        className="form-input"
+                        value={fatorConversaoNovoItem}
+                        onChange={(e) => setFatorConversaoNovoItem(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+              <div className="form-group">
+                <label htmlFor="novo-item-limiar">
+                  Limiar de baixo estoque
+                </label>
+                <input
+                  id="novo-item-limiar"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  className="form-input"
+                  value={limiarNovoItem}
+                  onChange={(e) => setLimiarNovoItem(e.target.value)}
+                  required
+                />
+                <span className="campo-ajuda">
+                  Alerta quando o saldo ficar abaixo deste valor, na unidade de exibição.
+                </span>
+              </div>
+
+              {erroNovoItem && (
+                <p className="alerta-erro" role="alert">
+                  {erroNovoItem}
+                </p>
+              )}
+            </div>
+
+            <div className="modal-acoes">
+              <button
+                type="button"
+                className="btn-secundario"
+                onClick={fecharModalItem}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primario"
+                onClick={salvarNovoItem}
+                disabled={salvandoItem}
+              >
+                {salvandoItem ? 'Salvando…' : 'Salvar item'}
               </button>
             </div>
           </div>
