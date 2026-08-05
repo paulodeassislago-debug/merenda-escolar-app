@@ -91,16 +91,24 @@ export default function Planejamento() {
   const [avisos, setAvisos] = useState<PlanejamentoAviso[]>([]);
   const projecaoRef = useRef<ProjecaoSemana | null>(null);
   const painelRef = useRef<HTMLDetailsElement>(null);
+  // obs #4: debounce do refetch da projeção ao alterar selects da grade (~300ms)
+  const debounceProjecaoRef = useRef<number | null>(null);
 
   const segunda = segundaDaSemana(semanaRef);
   const domingo = new Date(segunda);
   domingo.setDate(segunda.getDate() + 6);
 
-  /** Busca a projeção da semana (D-17). Falha isolada: a grade segue funcional. */
-  const carregarProjecao = useCallback(async (seg: Date) => {
+  /**
+   * Busca a projeção da semana (D-17). Falha isolada: a grade segue funcional.
+   * `rascunho` (obs #4): pré-visualização das células alteradas no formato
+   * `dia|slot|cardapio_item_id` — o backend ignora entradas inválidas (T-08-14).
+   */
+  const carregarProjecao = useCallback(async (seg: Date, rascunho?: string[]) => {
     try {
+      const params = new URLSearchParams({ data: formatISO(seg) });
+      for (const r of rascunho ?? []) params.append('rascunho', r);
       const proj = await fetchJson<ProjecaoSemana>(
-        '/planejamento/projecao?data=' + formatISO(seg),
+        '/planejamento/projecao?' + params.toString(),
       );
       if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return; // semana mudou no meio
       projecaoRef.current = proj;
@@ -113,6 +121,42 @@ export default function Planejamento() {
       setErroProjecao(true);
     }
   }, [semanaRef]);
+
+  /** Monta o rascunho da grade inteira: `dia|slot|cardapio_item_id` por célula preenchida. */
+  const montarRascunho = (selecoesAtuais: Record<string, number | null>): string[] => {
+    const rascunho: string[] = [];
+    for (let dia = 0; dia < 7; dia++) {
+      for (const slot of SLOTS_REFEICAO) {
+        const id = selecoesAtuais[chaveSlot(dia, slot)];
+        if (id !== null && id !== undefined) {
+          rascunho.push(`${dia}|${slot}|${id}`);
+        }
+      }
+    }
+    return rascunho;
+  };
+
+  /**
+   * obs #4: reagenda o refetch da projeção com o rascunho das células alteradas,
+   * cancelando o agendamento anterior (debounce ~300ms) — sem salvar.
+   */
+  const agendarRefetchProjecao = (selecoesAtuais: Record<string, number | null>) => {
+    if (debounceProjecaoRef.current !== null) {
+      window.clearTimeout(debounceProjecaoRef.current);
+    }
+    debounceProjecaoRef.current = window.setTimeout(() => {
+      void carregarProjecao(segundaDaSemana(semanaRef), montarRascunho(selecoesAtuais));
+    }, 300);
+  };
+
+  // Limpa o timer pendente ao desmontar
+  useEffect(() => {
+    return () => {
+      if (debounceProjecaoRef.current !== null) {
+        window.clearTimeout(debounceProjecaoRef.current);
+      }
+    };
+  }, []);
 
   /** Refetch após salvar — dependente de semanaRef para usar a semana correta. */
   const carregarDados = useCallback(async () => {
@@ -354,12 +398,17 @@ export default function Planejamento() {
                         (p) => p.tipo_refeicao === tipoParaFiltro,
                       );
 
-                      // Projeção (D-19): badge de déficit projetado no dia.
+                      // Projeção (D-19): badge de déficit projetado por SLOT (obs #5).
                       // WR-01: o backend só emite dias COM consumo (dias esparso) — o
-                      // lookup é por `dia_semana`, nunca posicional (dias[diaIdx]).
+                      // lookup é por `dia_semana`, nunca posicional (dias[diaIdx]);
+                      // dentro do dia, o aviso aponta apenas o slot afetado.
                       const diaProjecao = projecao?.configurado
                         ? projecao.dias.find((d) => d.dia_semana === diaIdx)
                         : undefined;
+                      const slotProjecao = diaProjecao
+                        ? diaProjecao.slots.find((s) => s.slot === slot)
+                        : undefined;
+                      const rupturasSlot = slotProjecao?.rupturas ?? [];
 
                       return (
                         <td key={slot} className="planejamento-celula">
@@ -368,11 +417,14 @@ export default function Planejamento() {
                             value={String(valorAtual)}
                             onChange={(e) => {
                               const v = e.target.value;
-                              setSelecoes((prev) => ({
-                                ...prev,
+                              const novasSelecoes = {
+                                ...selecoes,
                                 [chave]: v === '' ? null : Number(v),
-                              }));
+                              };
+                              setSelecoes(novasSelecoes);
                               setSucesso(false);
+                              // obs #4: pré-visualiza a projeção sem salvar (debounce)
+                              agendarRefetchProjecao(novasSelecoes);
                             }}
                           >
                             <option value="">— A definir —</option>
@@ -382,18 +434,18 @@ export default function Planejamento() {
                               </option>
                             ))}
                           </select>
-                          {diaProjecao && diaProjecao.rupturas.length > 0 && (
+                          {rupturasSlot.length > 0 && (
                             <span
                               className="badge-ruptura"
-                              title={diaProjecao.rupturas
+                              title={rupturasSlot
                                 .map(
                                   (r) =>
                                     `${r.nome} −${r.faltando.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${r.unidade_oficial}`,
                                 )
                                 .join('\n')}
                             >
-                              ⚠ {diaProjecao.rupturas.length}{' '}
-                              {diaProjecao.rupturas.length === 1 ? 'item faltando' : 'itens faltando'}
+                              ⚠ {rupturasSlot.length}{' '}
+                              {rupturasSlot.length === 1 ? 'item faltando' : 'itens faltando'}
                             </span>
                           )}
                         </td>

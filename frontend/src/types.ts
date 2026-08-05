@@ -104,10 +104,15 @@ export interface ProjecaoRuptura {
   unidade_oficial: string;
 }
 
+export interface ProjecaoSlot {
+  slot: string;
+  rupturas: ProjecaoRuptura[];
+}
+
 export interface ProjecaoDia {
   dia: string;
   dia_semana: number;
-  rupturas: ProjecaoRuptura[];
+  slots: ProjecaoSlot[];
 }
 
 export interface ProjecaoItem {
