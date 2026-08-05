@@ -2,10 +2,13 @@
 // Página cerimonial (.planning/PROJECT.md): logo, nome da escola em serif, sem navegação autenticada.
 
 import { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../api';
+import { fetchJson } from '../api';
+import { SLOTS_REFEICAO } from './admin/constants';
 import logoNancy from '../assets/Logo Nancy (Logotipo) (1).jpg';
 import './CardapioPublico.css';
 
+// Tipo de transporte: quantidade e medida_caseira existem apenas para desserializar
+// a resposta do endpoint; nunca chegam ao JSX (D-07-02, D-07-04).
 interface IngredientePublico {
   item_nome: string | null;
   quantidade: number;
@@ -27,21 +30,41 @@ function formatarDataHoje(): string {
   });
 }
 
+// Normaliza a resposta esparsa para os quatro slots na ordem operacional fixa
+// (D-07-05, D-07-06): slots omitidos pela API viram prato nulo com ingredientes vazios.
+function normalizarQuatroSlots(resposta: RefeicaoPublica[]): RefeicaoPublica[] {
+  const porTipo = new Map(resposta.map((refeicao) => [refeicao.tipo_refeicao, refeicao]));
+  return SLOTS_REFEICAO.map((slot) => {
+    const encontrada = porTipo.get(slot);
+    return (
+      encontrada ?? { tipo_refeicao: slot, nome_refeicao: null, ingredientes: [] }
+    );
+  });
+}
+
 export default function CardapioPublico() {
   const [refeicoes, setRefeicoes] = useState<RefeicaoPublica[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [ingredientesAbertos, setIngredientesAbertos] = useState<Record<string, boolean>>({});
+
+  const carregarCardapio = () => {
+    setCarregando(true);
+    setErro(null);
+    fetchJson<RefeicaoPublica[]>('/publico/cardapio')
+      .then((resposta) => setRefeicoes(resposta))
+      .catch(() => setErro('Não foi possível carregar o cardápio de hoje. Tente novamente.'))
+      .finally(() => setCarregando(false));
+  };
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/publico/cardapio`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<RefeicaoPublica[]>;
-      })
-      .then(setRefeicoes)
-      .catch(() => setErro('Não foi possível carregar o cardápio de hoje.'))
-      .finally(() => setCarregando(false));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    carregarCardapio();
   }, []);
+
+  const aoAlternarIngredientes = (slot: string, aberto: boolean) => {
+    setIngredientesAbertos((anterior) => ({ ...anterior, [slot]: aberto }));
+  };
 
   return (
     <div className="publico-container">
@@ -70,18 +93,38 @@ export default function CardapioPublico() {
 
         {!carregando && !erro && refeicoes.length > 0 && (
           <div className="publico-grid">
-            {refeicoes.map((refeicao) => (
-              <section key={refeicao.tipo_refeicao} className="publico-card">
-                <h2 className="publico-tipo">{refeicao.tipo_refeicao}</h2>
-                <p className="publico-prato">{refeicao.nome_refeicao ?? 'A definir'}</p>
-                {refeicao.ingredientes.length > 0 && (
-                  <ul className="publico-ingredientes">
-                    {refeicao.ingredientes.map((ing, idx) => (
-                      <li key={idx}>
-                        {ing.item_nome ?? 'Item'} — {ing.quantidade} {ing.medida_caseira}
-                      </li>
-                    ))}
-                  </ul>
+            {normalizarQuatroSlots(refeicoes).map((refeicao, indice) => (
+              <section
+                key={refeicao.tipo_refeicao}
+                className="publico-card"
+                aria-labelledby={`publico-prato-${indice}`}
+              >
+                <p className="publico-tipo">{refeicao.tipo_refeicao}</p>
+                <h2 className="publico-prato" id={`publico-prato-${indice}`}>
+                  {refeicao.nome_refeicao ?? 'A definir'}
+                </h2>
+                {refeicao.ingredientes.length === 0 ? (
+                  <p className="publico-sem-receita">Ingredientes não informados.</p>
+                ) : (
+                  <details
+                    className="publico-disclosure"
+                    onToggle={(evento) =>
+                      aoAlternarIngredientes(refeicao.tipo_refeicao, evento.currentTarget.open)
+                    }
+                  >
+                    <summary>
+                      {ingredientesAbertos[refeicao.tipo_refeicao]
+                        ? 'Ocultar ingredientes'
+                        : 'Ver ingredientes'}
+                    </summary>
+                    <ul className="publico-ingredientes">
+                      {refeicao.ingredientes.map((ingrediente, idx) => (
+                        <li key={idx}>
+                          {ingrediente.item_nome ?? 'Ingrediente não informado'}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </section>
             ))}

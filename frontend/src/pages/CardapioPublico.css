@@ -90,6 +90,36 @@
   margin: 0 0 0.75rem;
 }
 
+.publico-sem-receita {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.publico-disclosure {
+  min-width: 0;
+}
+
+.publico-disclosure summary {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 12px 0;
+  cursor: pointer;
+  color: var(--verde-escuro);
+  font-weight: 700;
+}
+
+.publico-disclosure summary::marker {
+  color: var(--verde-vivo);
+}
+
+.publico-disclosure summary:focus-visible {
+  outline: 3px solid var(--verde-vivo);
+  outline-offset: 2px;
+  border-radius: var(--raio);
+}
+
 .publico-ingredientes {
   margin: 0;
   padding-left: 1.125rem;
