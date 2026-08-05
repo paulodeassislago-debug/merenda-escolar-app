@@ -29,13 +29,13 @@ def _payload_entrega(itens: list, **campos) -> dict:
     os testes de saldo/ações (E1-E13) continuem exercendo o comportamento alvo.
     """
     payload = {
-        "origem": "xml",
+        "origem": campos.get("origem", "xml"),
         "data_entrega": "2026-08-05",
         "fornecedor_id": campos.get("fornecedor_id"),
         "nota_numero": campos.get("nota_numero", "NF-TESTE"),
         "itens": itens,
     }
-    for chave in ("nota_numero", "observacoes"):
+    for chave in ("origem", "nota_numero", "observacoes"):
         if chave in campos:
             payload[chave] = campos[chave]
     return payload
@@ -179,8 +179,8 @@ def test_e7_perfil_errado(client, cozinheira_user, cozinheira_token):
     ).status_code == 403
 
 
-# E8 — Ação alterado/excluído sem justificativa → 400 (regra de auditoria; origem xml)
-def test_e8_acao_sem_justificativa(client, admin_user, admin_token):
+# E8 — Ação alterado/excluído sem justificativa → 400 (regra de auditoria; vale apenas para origem xml — DELIV-05 revisado, D-07)
+def test_e8_xml_acao_sem_justificativa(client, admin_user, admin_token):
     item = _criar_item(client, admin_token, "Arroz")
     fornecedor = _criar_fornecedor(client, admin_token)
 
@@ -193,6 +193,7 @@ def test_e8_acao_sem_justificativa(client, admin_user, admin_token):
         headers=_auth(admin_token),
     )
     assert resp.status_code == 400
+    assert "justificativa" in resp.json()["detail"].lower()
 
     resp = client.post(
         "/entregas",
@@ -459,3 +460,118 @@ def test_f5_detalhe_entrega_campos_novos(client, admin_user, admin_token):
     assert detalhe["fornecedor_nome"] == "Laticínios ABC"
     assert detalhe["nota_numero"] == "NF-999"
     assert detalhe["observacoes"] == "Recebido no turno da manhã"
+
+
+# --- Fase 8 — Regras por origem no POST /entregas (D-07; E14-E18) ---
+
+# E14 — Entrega manual sem observações → 400
+def test_e14_manual_exige_observacoes(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz")
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
+            fornecedor_id=fornecedor["id"],
+            origem="manual",
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "observações" in resp.json()["detail"].lower()
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+
+# E15 — Entrega manual: somente ação 'recebido'; justificativa não é gravada
+def test_e15_manual_somente_recebido(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Feijão", saldo=10.0)
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    # Linha com ação 'alterado' → 400 mesmo com justificativa e observações
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": 3, "acao": "alterado", "justificativa": "X"}],
+            fornecedor_id=fornecedor["id"],
+            origem="manual",
+            observacoes="Recebido no turno da manhã",
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "recebido" in resp.json()["detail"].lower()
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+    # Linha 'recebido' + observações → 200; justificativa da linha fica None
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": 3, "acao": "recebido", "justificativa": "não deve gravar"}],
+            fornecedor_id=fornecedor["id"],
+            origem="manual",
+            observacoes="Recebido no turno da manhã",
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert _saldo(client, admin_token, item["id"]) == 13.0
+
+    detalhe = client.get(f"/entregas/{resp.json()['id']}", headers=_auth(admin_token)).json()
+    assert detalhe["itens"][0]["justificativa"] is None
+
+
+# E16 — Entrega XML sem nota_numero → 400 (D-07)
+def test_e16_xml_exige_nota_numero(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Óleo")
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "origem": "xml",
+            "data_entrega": "2026-08-05",
+            "fornecedor_id": fornecedor["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "nota" in resp.json()["detail"].lower()
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+
+# E17 — Fornecedor inexistente → 404 (D-05)
+def test_e17_fornecedor_inexistente(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Batata")
+
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
+            fornecedor_id=9999,
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 404
+    assert "9999" in resp.json()["detail"]
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+
+# E18 — Origem inválida → 400
+def test_e18_origem_invalida(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Cenoura")
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
+            fornecedor_id=fornecedor["id"],
+            origem="pix",
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 400
+    assert "origem" in resp.json()["detail"].lower()
+    assert _saldo(client, admin_token, item["id"]) == 10.0
