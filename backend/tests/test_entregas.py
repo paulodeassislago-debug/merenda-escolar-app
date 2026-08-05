@@ -30,12 +30,12 @@ def _payload_entrega(itens: list, **campos) -> dict:
     """
     payload = {
         "origem": campos.get("origem", "xml"),
-        "data_entrega": "2026-08-05",
+        "data_entrega": campos.get("data_entrega", "2026-08-05"),
         "fornecedor_id": campos.get("fornecedor_id"),
         "nota_numero": campos.get("nota_numero", "NF-TESTE"),
         "itens": itens,
     }
-    for chave in ("origem", "nota_numero", "observacoes"):
+    for chave in ("origem", "data_entrega", "nota_numero", "observacoes"):
         if chave in campos:
             payload[chave] = campos[chave]
     return payload
@@ -575,3 +575,37 @@ def test_e18_origem_invalida(client, admin_user, admin_token):
     assert resp.status_code == 400
     assert "origem" in resp.json()["detail"].lower()
     assert _saldo(client, admin_token, item["id"]) == 10.0
+
+
+# E19 — Quantidade negativa → 422 e saldo inalterado (CR-01; espelha R13)
+def test_e19_quantidade_negativa_rejeitada(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    # 'recebido' com quantidade negativa não pode reduzir o estoque
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": -1000, "acao": "recebido"}],
+            fornecedor_id=fornecedor["id"],
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 422
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+    # Mesma proteção para a ação 'alterado' (também muta o saldo)
+    resp = client.post(
+        "/entregas",
+        json=_payload_entrega(
+            [{"item_id": item["id"], "quantidade": -5, "acao": "alterado", "justificativa": "X"}],
+            fornecedor_id=fornecedor["id"],
+        ),
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 422
+    assert _saldo(client, admin_token, item["id"]) == 10.0
+
+    # Nada foi gravado: nenhuma entrega criada
+    lista = client.get("/entregas", headers=_auth(admin_token)).json()
+    assert lista == []

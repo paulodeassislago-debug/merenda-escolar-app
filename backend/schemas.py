@@ -144,7 +144,9 @@ class PlanejamentoResponse(BaseModel):
 
 class EntregaItemRequest(BaseModel):
     item_id: int
-    quantidade: float
+    # CR-01: sem limite inferior, um "recebido" negativo reduziria o estoque —
+    # mesmo padrão de RefeicaoItemRequest (R13). Zero é legítimo para linhas 'excluído'.
+    quantidade: float = Field(ge=0)
     acao: str  # "recebido" | "alterado" | "excluído"
     unidade: str | None = None
     fator_conversao: float | None = None
