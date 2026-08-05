@@ -1,102 +1,195 @@
-/* src/pages/CardapioPublico.css — página cerimonial pública (.planning/PROJECT.md) */
+/* src/pages/CardapioPublico.css — página cerimonial pública (.planning/PROJECT.md)
+   Contrato 07-UI-SPEC: escala 4/8/16/24/32/48/64 (3xl só em desktop), pesos 400/700,
+   serif apenas para nome da escola, data e prato; sans para estados e controles. */
 
 .publico-container {
   min-height: 100vh;
-  background-color: var(--fundo);
-  font-family: var(--fonte-sans);
-  color: var(--texto);
   display: flex;
   flex-direction: column;
+  background-color: var(--fundo);
+  color: var(--texto);
+  font-family: var(--fonte-sans);
 }
 
 .publico-header {
   text-align: center;
-  padding: 2.5rem 1rem 1.5rem;
+  padding: 48px 16px 24px;
   background-color: var(--branco);
   border-bottom: 1px solid var(--borda);
 }
 
 .publico-logo {
+  display: block;
   height: 80px;
   width: 80px;
+  margin: 0 auto 8px;
   object-fit: contain;
-  margin-bottom: 0.75rem;
+  background-color: var(--branco);
 }
 
 .publico-header h1 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
   font-family: var(--fonte-serif);
-  font-size: 1.375rem;
+  font-size: 28px;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--verde-escuro);
-  margin: 0 0 0.375rem;
 }
 
 .publico-data {
-  font-family: var(--fonte-serif);
-  color: var(--texto-suave);
-  font-size: 0.95rem;
   margin: 0;
+  font-family: var(--fonte-serif);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--texto-suave);
   text-transform: capitalize;
 }
 
 .publico-conteudo {
   flex-grow: 1;
-  padding: 1.5rem 1rem;
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
+  padding: 32px 16px;
   box-sizing: border-box;
 }
 
+/* Carregamento: shell preservado, sem cartões sintéticos antes da resposta */
 .publico-aviso {
+  margin: 0;
+  padding: 32px 16px;
   text-align: center;
   color: var(--texto-suave);
-  padding: 2rem 1rem;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
+/* Vazio: resposta [] distinta de loading, erro e slot ausente */
+.publico-vazio {
+  margin: 0 0 32px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.publico-vazio-titulo {
+  margin: 0;
+  color: var(--verde-escuro);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.publico-vazio-texto {
+  margin: 8px 0 0;
+  color: var(--texto-suave);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Erro acionável: role="alert" com retry recuperável */
 .publico-erro {
-  color: var(--erro);
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  margin: 0 0 32px;
+  padding: 16px;
+  border: 1px solid var(--erro);
+  border-radius: var(--raio);
+  background-color: var(--erro-fundo);
 }
 
+.publico-erro-texto {
+  margin: 0;
+  color: var(--erro);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.publico-botao-retry {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--verde-escuro);
+  border-radius: var(--raio);
+  background-color: var(--branco);
+  color: var(--verde-escuro);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.publico-botao-retry:focus-visible {
+  outline: 3px solid var(--verde-vivo);
+  outline-offset: 2px;
+}
+
+/* Grade responsiva: 1 coluna 320–599px, 2 colunas 600–959px, 4 colunas ≥ 960px */
 .publico-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
+@media (min-width: 600px) {
+  .publico-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .publico-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+
+/* Cartão do slot: rótulo secundário, prato dominante, disclosure opcional */
 .publico-card {
-  background-color: var(--branco);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
   border: 1px solid var(--borda);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra-card);
-  padding: 1.25rem;
   border-top: 3px solid var(--verde-vivo);
+  border-radius: var(--raio);
+  background-color: var(--branco);
+  box-shadow: var(--sombra-card);
 }
 
 .publico-tipo {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin: 0;
   color: var(--texto-suave);
-  margin: 0 0 0.375rem;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
 }
 
 .publico-prato {
+  margin: 0;
+  overflow-wrap: anywhere;
   font-family: var(--fonte-serif);
-  font-size: 1.25rem;
+  font-size: 20px;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--verde-escuro);
-  margin: 0 0 0.75rem;
 }
 
 .publico-sem-receita {
   margin: 0;
   color: var(--texto-suave);
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
+/* Disclosure nativo: hit area mínima de 44px, foco visível, nomes completos */
 .publico-disclosure {
   min-width: 0;
 }
@@ -107,7 +200,9 @@
   padding: 12px 0;
   cursor: pointer;
   color: var(--verde-escuro);
+  font-size: 16px;
   font-weight: 700;
+  line-height: 1.5;
 }
 
 .publico-disclosure summary::marker {
@@ -121,18 +216,27 @@
 }
 
 .publico-ingredientes {
+  display: grid;
+  gap: 8px;
   margin: 0;
-  padding-left: 1.125rem;
+  padding: 8px 0 0 20px;
   color: var(--texto-suave);
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.publico-ingredientes li {
+  overflow-wrap: anywhere;
 }
 
 .publico-footer {
-  text-align: center;
-  padding: 1rem;
-  font-size: 0.8rem;
-  color: var(--texto-suave);
+  padding: 16px;
   border-top: 1px solid var(--borda);
   background-color: var(--branco);
+  text-align: center;
+  color: var(--texto-suave);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
 }

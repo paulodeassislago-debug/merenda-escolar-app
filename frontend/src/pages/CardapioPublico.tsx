@@ -51,6 +51,7 @@ export default function CardapioPublico() {
   const carregarCardapio = () => {
     setCarregando(true);
     setErro(null);
+    setRefeicoes([]);
     fetchJson<RefeicaoPublica[]>('/publico/cardapio')
       .then((resposta) => setRefeicoes(resposta))
       .catch(() => setErro('Não foi possível carregar o cardápio de hoje. Tente novamente.'))
@@ -82,18 +83,28 @@ export default function CardapioPublico() {
         {carregando && <p className="publico-aviso">Carregando cardápio…</p>}
 
         {erro && (
-          <p className="publico-aviso publico-erro" role="alert">
-            {erro}
-          </p>
+          <div className="publico-erro" role="alert">
+            <p className="publico-erro-texto">{erro}</p>
+            <button type="button" className="publico-botao-retry" onClick={carregarCardapio}>
+              Tentar novamente
+            </button>
+          </div>
         )}
 
-        {!carregando && !erro && refeicoes.length === 0 && (
-          <p className="publico-aviso">Nenhum cardápio planejado para hoje.</p>
-        )}
+        {!carregando && !erro && (
+          <>
+            {refeicoes.length === 0 && (
+              <div className="publico-vazio">
+                <h2 className="publico-vazio-titulo">Nenhum cardápio planejado para hoje.</h2>
+                <p className="publico-vazio-texto">
+                  Os quatro momentos do serviço permanecem visíveis e aparecem como “A definir”
+                  quando não há planejamento.
+                </p>
+              </div>
+            )}
 
-        {!carregando && !erro && refeicoes.length > 0 && (
-          <div className="publico-grid">
-            {normalizarQuatroSlots(refeicoes).map((refeicao, indice) => (
+            <div className="publico-grid">
+              {normalizarQuatroSlots(refeicoes).map((refeicao, indice) => (
               <section
                 key={refeicao.tipo_refeicao}
                 className="publico-card"
@@ -127,8 +138,9 @@ export default function CardapioPublico() {
                   </details>
                 )}
               </section>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </main>
 
