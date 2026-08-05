@@ -244,6 +244,15 @@ button:disabled {
   gap: 8px;
 }
 
+/* obs #7: badges do slot lado a lado (Confirmado/Disponível/Pendente + EXTRA) */
+.slot-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .slot-label {
   color: var(--verde-escuro);
 }
@@ -254,6 +263,13 @@ button:disabled {
   padding: 4px 8px;
   color: var(--texto);
   background: var(--verde-tint);
+}
+
+/* obs #7: refeição avulsa ocupa o slot com a tag EXTRA (--amarelo/--texto, AA) */
+.estado-badge-extra {
+  background: var(--amarelo);
+  color: var(--texto);
+  font-weight: 700;
 }
 
 .slot-pendente .estado-badge {

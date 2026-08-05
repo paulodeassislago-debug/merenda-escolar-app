@@ -212,8 +212,10 @@ export interface DashboardEstoque {
 }
 
 export interface DashboardRefeicaoHoje {
-  tipo_refeicao: string;
+  // obs #7: /admin/dashboard refeicoes_hoje segue o contrato por slot
+  slot: string;
   status: string;
+  extra: boolean;
   prato: string | null;
   alunos: number | null;
 }
@@ -249,10 +251,22 @@ export interface RefeicaoHistorico {
   id: number;
   data_hora: string;
   tipo_refeicao: string;
+  // obs #7: slot de lançamento persistido + flag de refeição avulsa
+  slot: string | null;
+  extra: boolean;
   qtd_alunos: number;
   id_usuario: number;
   planejamento_id: number | null;
   itens: RefeicaoItemHistorico[];
+}
+
+// obs #7: contrato de GET /refeicoes/hoje — status por slot (4 slots)
+export interface StatusSlotRefeicao {
+  slot: string;
+  status: 'confirmado' | 'pendente';
+  extra: boolean;
+  prato: string | null;
+  alunos: number | null;
 }
 
 // --- Lançamento de refeição (D-16b/R-5: payload por slot, sem tipo/qtd do cliente) ---

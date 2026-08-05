@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, fetchJson } from '../api';
 import { useAuth } from '../auth-context';
-import type { AlunosPorPeriodo, Conversao, Item, PlanejamentoEntrada, ReceitaItem, RefeicaoCreatePayload } from '../types';
+import type { AlunosPorPeriodo, Conversao, Item, PlanejamentoEntrada, ReceitaItem, RefeicaoCreatePayload, StatusSlotRefeicao } from '../types';
 import { SLOTS_REFEICAO } from './admin/constants';
 import './PainelCozinha.css';
 
@@ -83,7 +83,8 @@ export default function PainelCozinha() {
   const [erroReceita, setErroReceita] = useState<string | null>(null);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
-  const [slotConfirmado, setSlotConfirmado] = useState<number | null>(null);
+  // obs #7: status por slot do dia (contrato de /refeicoes/hoje — 4 slots)
+  const [statusRefeicoes, setStatusRefeicoes] = useState<StatusSlotRefeicao[]>([]);
   const [saldos, setSaldos] = useState<Record<number, Item>>({});
   const [itensCatalogo, setItensCatalogo] = useState<Item[]>([]);
   const [itemParaAdicionar, setItemParaAdicionar] = useState('');
@@ -100,6 +101,8 @@ export default function PainelCozinha() {
   const dialogRef = useRef<HTMLElement>(null);
   const botaoFecharRef = useRef<HTMLButtonElement>(null);
   const retornoFocoRef = useRef<HTMLElement | null>(null);
+  // obs #6: âncora de foco do alertdialog de descarte ("fechar ou salvar")
+  const descarteRef = useRef<HTMLDivElement>(null);
 
   const carregarPlanejamento = useCallback(async (data: string) => {
     const requestId = planejamentoRequestId.current + 1;
@@ -144,6 +147,43 @@ export default function PainelCozinha() {
     const focoInicial = window.setTimeout(() => botaoFecharRef.current?.focus(), 0);
     return () => window.clearTimeout(focoInicial);
   }, [entradaSelecionada, slotAvulso]);
+
+  // obs #7: status por slot (confirmado/pendente + EXTRA) — fonte das badges dos cards.
+  // Carregado no mount e a cada relerDepoisDaTentativa (pós-lançamento).
+  useEffect(() => {
+    let cancelado = false;
+    void fetchJson<StatusSlotRefeicao[]>('/refeicoes/hoje')
+      .then((dados) => {
+        if (!cancelado) setStatusRefeicoes(dados);
+      })
+      .catch(() => {
+        if (!cancelado) setStatusRefeicoes([]);
+      });
+    return () => { cancelado = true; };
+  }, []);
+
+  // obs #6: ao abrir o alertdialog de descarte, ancorar o foco no primeiro botão
+  useEffect(() => {
+    if (!confirmarDescarte) return;
+    const focoDescarte = window.setTimeout(() => {
+      descarteRef.current?.querySelector<HTMLElement>('button')?.focus();
+    }, 0);
+    return () => window.clearTimeout(focoDescarte);
+  }, [confirmarDescarte]);
+
+  // obs #6: fechar o alertdialog (Escape ou "Continuar editando") devolve o foco
+  // ao elemento que o abriu (botão Fechar do editor).
+  const fecharDescarte = () => {
+    setConfirmarDescarte(false);
+    botaoFecharRef.current?.focus();
+  };
+
+  const handleDescarteKeyDown = (evento: KeyboardEvent<HTMLElement>) => {
+    if (evento.key !== 'Escape') return;
+    evento.preventDefault();
+    evento.stopPropagation(); // não deixa o handler do editor reagir
+    fecharDescarte();
+  };
 
   // Configuração de alunos por período (D-14): a cozinheira tem leitura (08-07).
   // 404 (ainda não configurada) ou erro de rede → null = estado explícito (D-19).
@@ -385,9 +425,10 @@ export default function PainelCozinha() {
     const requestId = releituraRequestId.current + 1;
     releituraRequestId.current = requestId;
     try {
-      const [novoPlanejamento, novosItens] = await Promise.all([
+      const [novoPlanejamento, novosItens, novoStatus] = await Promise.all([
         fetchJson<PlanejamentoEntrada[]>(`/planejamento?data=${data}`),
         fetchJson<Item[]>('/itens'),
+        fetchJson<StatusSlotRefeicao[]>('/refeicoes/hoje'),
       ]);
       if (
         releituraRequestId.current !== requestId
@@ -396,6 +437,8 @@ export default function PainelCozinha() {
       ) return false;
       setPlanejamento(novoPlanejamento);
       setSaldos(Object.fromEntries(novosItens.map((item) => [item.id, item])));
+      // obs #7: badges dos cards refletem o lançamento recém-confirmado
+      setStatusRefeicoes(novoStatus);
       return true;
     } catch {
       return false;
@@ -450,7 +493,6 @@ export default function PainelCozinha() {
         return;
       }
 
-      setSlotConfirmado(entradaSelecionada.id);
       fecharEditorAgora();
     } catch (erro) {
       await relerDepoisDaTentativa(dataNoEnvio, entradaIdNoEnvio);
@@ -654,7 +696,6 @@ export default function PainelCozinha() {
               setIngredientes([]);
               setErroReceita(null);
               setErroEnvio(null);
-              setSlotConfirmado(null);
               setMensagemSucesso(null);
               setDataReferencia(evento.target.value);
             }}
@@ -696,12 +737,19 @@ export default function PainelCozinha() {
           <div className="slots-grade">
             {SLOTS_REFEICAO.map((slot) => {
               const entrada = entradasDoDia.find((item) => item.tipo_refeicao === slot);
-              const confirmado = entrada !== undefined && slotConfirmado === entrada.id;
+              // obs #7: status derivado do contrato por slot de /refeicoes/hoje;
+              // avulsa ocupa o slot e ganha a tag EXTRA.
+              const statusSlot = statusRefeicoes.find((s) => s.slot === slot);
+              const confirmado = statusSlot?.status === 'confirmado';
+              const extra = statusSlot?.extra === true;
               return (
                 <article key={slot} className={`slot-card ${entrada ? 'slot-disponivel' : 'slot-pendente'} ${confirmado ? 'slot-confirmado' : ''}`}>
                   <div className="slot-card-topo">
                     <span className="slot-label">{slot}</span>
-                    <span className="estado-badge">{confirmado ? 'Confirmado' : entrada ? 'Disponível' : 'Pendente'}</span>
+                    <span className="slot-badges">
+                      <span className="estado-badge">{confirmado ? 'Confirmado' : entrada ? 'Disponível' : 'Pendente'}</span>
+                      {extra && <span className="estado-badge estado-badge-extra">EXTRA</span>}
+                    </span>
                   </div>
                   {entrada ? (
                     <>
@@ -842,11 +890,18 @@ export default function PainelCozinha() {
             ) : null}
 
             {confirmarDescarte && (
-              <div className="confirmacao-descarte" role="alertdialog" aria-modal="true" aria-labelledby="descarte-titulo">
+              <div
+                ref={descarteRef}
+                className="confirmacao-descarte"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="descarte-titulo"
+                onKeyDown={handleDescarteKeyDown}
+              >
                 <h3 id="descarte-titulo">Descartar alterações?</h3>
                 <p>O rascunho e as justificativas preenchidas serão perdidos.</p>
                 <div className="confirmacao-acoes">
-                  <button type="button" className="botao-secundario" onClick={() => setConfirmarDescarte(false)}>Continuar editando</button>
+                  <button type="button" className="botao-secundario" onClick={fecharDescarte}>Continuar editando</button>
                   <button type="button" className="botao-primario" onClick={fecharEditorAgora}>Descartar</button>
                 </div>
               </div>

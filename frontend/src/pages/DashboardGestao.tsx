@@ -279,7 +279,7 @@ export default function DashboardGestao() {
         {carregandoEntregas && <p className="gestao-status" role="status" aria-live="polite">Carregando entregas…</p>}
         <ErroSecao erro={erroEntregas} onRetry={() => carregarEntregas(dataReferencia)} onSessionExpired={handleSessaoExpirada} />
         {!carregandoEntregas && !erroEntregas && entregas.length === 0 && <div className="gestao-estado"><h3>Nenhuma entrega registrada</h3><p>Não há recebimentos para a data selecionada.</p></div>}
-        {entregas.length > 0 && <div className="gestao-tabela-container"><table className="gestao-tabela"><caption className="gestao-visualmente-oculto">Entregas registradas na data selecionada</caption><thead><tr><th scope="col">ID</th><th scope="col">Data e hora</th><th scope="col">Usuário</th><th scope="col">Itens</th></tr></thead><tbody>{entregas.map((entrega) => <tr key={entrega.id}><td>#{entrega.id}</td><td>{dataHoraLegivel(entrega.data_hora)}</td><td>#{entrega.id_usuario}</td><td>{entrega.qtd_itens}</td></tr>)}</tbody></table></div>}
+        {entregas.length > 0 && <div className="gestao-tabela-container"><table className="gestao-tabela"><caption className="gestao-visualmente-oculto">Entregas registradas na data selecionada</caption><thead><tr><th scope="col">ID</th><th scope="col">Data e hora</th><th scope="col">Fornecedor</th><th scope="col">Observações</th><th scope="col">Itens</th></tr></thead><tbody>{entregas.map((entrega) => <tr key={entrega.id}><td>#{entrega.id}</td><td>{dataHoraLegivel(entrega.data_hora)}</td><td>{entrega.fornecedor_nome ?? '—'}</td><td>{entrega.observacoes ?? '—'}</td><td>{entrega.qtd_itens}</td></tr>)}</tbody></table></div>}
       </section>
     </div>
   );
