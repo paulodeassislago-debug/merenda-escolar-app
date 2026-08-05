@@ -171,6 +171,49 @@ def test_4_8_limiar_atualizado(client, admin_user, admin_token):
     assert alvo["limiar"] == 2.5
 
 
+# --- 4.9 — POST /itens/inline (fluxo de Entregas; D-13) ---
+
+# 4.9 — Secretaria cria item pelo fluxo inline → 200, limiar default 5.0, listado no GET /itens
+def test_4_9_inline_secretaria_cria_item(
+    client, admin_user, admin_token, secretaria_user, secretaria_token
+):
+    resp = client.post(
+        "/itens/inline",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(secretaria_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["nome"] == "Carne Moída"
+    assert dados["unidade_oficial"] == "KG"
+    assert dados["limiar"] == 5.0
+    assert dados["saldo_atual"] == 0.0
+
+    lista = client.get("/itens", headers=_auth(admin_token)).json()
+    alvo = next(i for i in lista if i["nome"] == "Carne Moída")
+    assert alvo["limiar"] == 5.0
+
+
+# 4.10 — Cozinheira não pode usar POST /itens/inline → 403
+def test_4_10_inline_cozinheira_negado(client, cozinheira_user, cozinheira_token):
+    resp = client.post(
+        "/itens/inline",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 403
+
+
+# 4.11 — POST /itens (fora do fluxo) permanece admin-only → secretaria 403 (D-13)
+def test_4_11_itens_continua_admin_only(client, secretaria_user, secretaria_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(secretaria_token),
+    )
+    assert resp.status_code == 403
+
+
 # --- 5.7.1 — Unidades livres com conversão interna ---
 
 # A9-1: Criar item com unidade livre + conversão

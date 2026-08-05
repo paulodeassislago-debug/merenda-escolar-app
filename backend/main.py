@@ -178,12 +178,11 @@ def listar_itens(
     ]
 
 
-@app.post("/itens")
-def criar_item(
-    dados: schemas.ItemCreate,
-    db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
-):
+def _criar_item_no_banco(db: Session, dados: schemas.ItemCreate) -> models.Item:
+    """Valida e persiste um novo item — compartilhado por /itens e /itens/inline (D-13).
+
+    Mesmas regras: unidade livre exige conversão, limiar > 0 (default 5.0), nome único.
+    """
     unidade_normalizada = dados.unidade_oficial.strip().upper()
 
     # Validação condicional: se unidade não for KG ou L, exige conversão
@@ -218,15 +217,42 @@ def criar_item(
     db.add(novo)
     db.commit()
     db.refresh(novo)
+    return novo
+
+
+def _serializar_item(item: models.Item) -> dict:
     return {
-        "id": novo.id,
-        "nome": novo.nome,
-        "unidade_oficial": novo.unidade_oficial,
-        "saldo_atual": novo.saldo_atual,
-        "unidade_interna": novo.unidade_interna,
-        "fator_conversao": novo.fator_conversao,
-        "limiar": novo.limiar,
+        "id": item.id,
+        "nome": item.nome,
+        "unidade_oficial": item.unidade_oficial,
+        "saldo_atual": item.saldo_atual,
+        "unidade_interna": item.unidade_interna,
+        "fator_conversao": item.fator_conversao,
+        "limiar": item.limiar,
     }
+
+
+@app.post("/itens")
+def criar_item(
+    dados: schemas.ItemCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
+):
+    return _serializar_item(_criar_item_no_banco(db, dados))
+
+
+@app.post("/itens/inline")
+def criar_item_inline(
+    dados: schemas.ItemCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    """Cria item dentro do fluxo de Entregas (D-13): admin e secretaria.
+
+    Mesmas validações de POST /itens; fora do fluxo de Entregas o cadastro
+    permanece admin-only (POST /itens inalterado).
+    """
+    return _serializar_item(_criar_item_no_banco(db, dados))
 
 
 @app.put("/itens/{item_id}")
