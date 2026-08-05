@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, fetchJson } from '../api';
 import { useAuth } from '../auth-context';
-import type { AlunosPorPeriodo, Conversao, Item, PlanejamentoEntrada, ReceitaItem } from '../types';
+import type { AlunosPorPeriodo, Conversao, Item, PlanejamentoEntrada, ReceitaItem, RefeicaoCreatePayload } from '../types';
 import { SLOTS_REFEICAO } from './admin/constants';
 import './PainelCozinha.css';
 
@@ -90,6 +90,8 @@ export default function PainelCozinha() {
   const [carregandoAdicao, setCarregandoAdicao] = useState(false);
   const [receitaCarregada, setReceitaCarregada] = useState(false);
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
+  const [slotAvulso, setSlotAvulso] = useState<SlotRefeicao | null>(null);
+  const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const receitaRequestId = useRef(0);
   const planejamentoRequestId = useRef(0);
   const releituraRequestId = useRef(0);
@@ -138,10 +140,10 @@ export default function PainelCozinha() {
   }, [dataReferencia]);
 
   useEffect(() => {
-    if (!entradaSelecionada) return;
+    if (!entradaSelecionada && !slotAvulso) return;
     const focoInicial = window.setTimeout(() => botaoFecharRef.current?.focus(), 0);
     return () => window.clearTimeout(focoInicial);
-  }, [entradaSelecionada]);
+  }, [entradaSelecionada, slotAvulso]);
 
   // Configuração de alunos por período (D-14): a cozinheira tem leitura (08-07).
   // 404 (ainda não configurada) ou erro de rede → null = estado explícito (D-19).
@@ -223,6 +225,7 @@ export default function PainelCozinha() {
     retornoFocoRef.current = origem ?? null;
     entradaSelecionadaAtual.current = entrada.id;
     setEntradaSelecionada(entrada);
+    setSlotAvulso(null);
     setIngredientes([]);
     setItemParaAdicionar('');
     setErroReceita(null);
@@ -235,6 +238,31 @@ export default function PainelCozinha() {
     }
   };
 
+  // Lançamento avulso (D-16b): a cozinheira escolhe um dos 4 slots e monta os
+  // itens manualmente — sem planejamento_id; o backend deriva tipo e total.
+  const abrirAvulso = async (slot: SlotRefeicao) => {
+    if (salvando || !alunosConfig) return;
+    receitaRequestId.current += 1;
+    retornoFocoRef.current = null;
+    entradaSelecionadaAtual.current = null;
+    setEntradaSelecionada(null);
+    setIngredientes([]);
+    setItemParaAdicionar('');
+    setErroReceita(null);
+    setErroEnvio(null);
+    setReceitaCarregada(false);
+    setConfirmarDescarte(false);
+    setMensagemSucesso(null);
+    setSlotAvulso(slot);
+    try {
+      const catalogo = await fetchJson<Item[]>('/itens');
+      setItensCatalogo(catalogo);
+      setSaldos(Object.fromEntries(catalogo.map((item) => [item.id, item])));
+    } catch (erro) {
+      setErroEnvio(mensagemDeErro(erro, 'Não foi possível carregar o catálogo de itens. Tente novamente.'));
+    }
+  };
+
   const rascunhoTemAlteracoes = (): boolean => {
     return ingredientes.length > 0 || itemParaAdicionar !== '';
   };
@@ -242,6 +270,7 @@ export default function PainelCozinha() {
   const fecharEditorAgora = () => {
     entradaSelecionadaAtual.current = null;
     setEntradaSelecionada(null);
+    setSlotAvulso(null);
     setIngredientes([]);
     setItemParaAdicionar('');
     setErroReceita(null);
@@ -352,7 +381,7 @@ export default function PainelCozinha() {
     }
   };
 
-  const relerDepoisDaTentativa = async (data: string, entradaId: number): Promise<boolean> => {
+  const relerDepoisDaTentativa = async (data: string, entradaId: number | null): Promise<boolean> => {
     const requestId = releituraRequestId.current + 1;
     releituraRequestId.current = requestId;
     try {
@@ -363,7 +392,7 @@ export default function PainelCozinha() {
       if (
         releituraRequestId.current !== requestId
         || dataReferenciaAtual.current !== data
-        || entradaSelecionadaAtual.current !== entradaId
+        || (entradaId !== null && entradaSelecionadaAtual.current !== entradaId)
       ) return false;
       setPlanejamento(novoPlanejamento);
       setSaldos(Object.fromEntries(novosItens.map((item) => [item.id, item])));
@@ -400,18 +429,19 @@ export default function PainelCozinha() {
     setSalvando(true);
     setErroEnvio(null);
     try {
+      const payload: RefeicaoCreatePayload = {
+        slot: entradaSelecionada.tipo_refeicao,
+        planejamento_id: entradaSelecionada.id,
+        itens: ingredientes.map((item) => ({
+          item_id: item.itemId,
+          quantidade: item.quantidadeAtual,
+          medida_caseira: item.medidaSelecionada,
+          justificativa: item.justificativa.trim() || null,
+        })),
+      };
       await fetchJson<{ id: number; mensagem: string }>('/refeicoes', {
         method: 'POST',
-        body: JSON.stringify({
-          slot: entradaSelecionada.tipo_refeicao,
-          planejamento_id: entradaSelecionada.id,
-          itens: ingredientes.map((item) => ({
-            item_id: item.itemId,
-            quantidade: item.quantidadeAtual,
-            medida_caseira: item.medidaSelecionada,
-            justificativa: item.justificativa.trim() || null,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const leituraConcluida = await relerDepoisDaTentativa(dataNoEnvio, entradaIdNoEnvio);
@@ -430,6 +460,63 @@ export default function PainelCozinha() {
     }
   };
 
+  const handleFinalizarAvulso = async (evento: FormEvent<HTMLFormElement>) => {
+    evento.preventDefault();
+    if (!slotAvulso || salvando) return;
+    const dataNoEnvio = dataReferencia;
+    const slotNoEnvio = slotAvulso;
+
+    const ingredientesValidos = ingredientes.length > 0 && ingredientes.every(
+      (item) => item.quantidadeAtual >= 0 && Number.isFinite(item.quantidadeAtual)
+        && item.quantidadeAtual > 0
+        && item.medidaSelecionada !== '' && item.conversoes.length > 0,
+    );
+    const justificativasValidas = ingredientes.every(
+      (item) => !itemTemDivergencia(item) || item.justificativa.trim() !== '',
+    );
+    if (!ingredientesValidos || !justificativasValidas) {
+      setErroEnvio(
+        !justificativasValidas
+          ? 'Informe a justificativa de cada ingrediente com quantidade alterada antes de confirmar.'
+          : 'Escolha uma conversão cadastrada e informe a quantidade de cada ingrediente.',
+      );
+      return;
+    }
+
+    setSalvando(true);
+    setErroEnvio(null);
+    try {
+      const payload: RefeicaoCreatePayload = {
+        slot: slotNoEnvio,
+        planejamento_id: null,
+        itens: ingredientes.map((item) => ({
+          item_id: item.itemId,
+          quantidade: item.quantidadeAtual,
+          medida_caseira: item.medidaSelecionada,
+          justificativa: item.justificativa.trim() || null,
+        })),
+      };
+      const resposta = await fetchJson<{ id: number; mensagem: string }>('/refeicoes', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      const leituraConcluida = await relerDepoisDaTentativa(dataNoEnvio, null);
+      if (!leituraConcluida) {
+        setErroEnvio('Refeição registrada, mas não foi possível atualizar os dados exibidos. Tente novamente.');
+        return;
+      }
+
+      fecharEditorAgora();
+      setMensagemSucesso(resposta.mensagem);
+    } catch (erro) {
+      await relerDepoisDaTentativa(dataNoEnvio, null);
+      setErroEnvio(mensagemDeErro(erro, 'Não foi possível registrar a refeição. O rascunho foi preservado.'));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   const handleSessaoExpirada = () => {
     logout();
     navigate('/', { replace: true });
@@ -439,6 +526,107 @@ export default function PainelCozinha() {
   const totalDoSlot = entradaSelecionada
     ? totalPorSlot(entradaSelecionada.tipo_refeicao as SlotRefeicao)
     : null;
+  const totalExibicao = totalDoSlot ?? 0;
+
+  // Bloco compartilhado entre o editor planejado e o lançamento avulso:
+  // seleção de ingrediente do catálogo + lista com quantidade/medida/justificativa.
+  const controlesIngredientes = (
+    <>
+      <div className="adicionar-ingrediente">
+        <label htmlFor="item-para-adicionar">Adicionar ingrediente</label>
+        <div className="adicionar-ingrediente-controles">
+          <select
+            id="item-para-adicionar"
+            value={itemParaAdicionar}
+            onChange={(evento) => setItemParaAdicionar(evento.target.value)}
+            disabled={carregandoAdicao || salvando}
+          >
+            <option value="">Selecione um item cadastrado</option>
+            {itensCatalogo
+              .filter((catalogoItem) => !ingredientes.some((ingrediente) => ingrediente.itemId === catalogoItem.id))
+              .map((catalogoItem) => <option key={catalogoItem.id} value={catalogoItem.id}>{catalogoItem.nome}</option>)}
+          </select>
+          <button type="button" className="botao-secundario" onClick={() => void adicionarIngrediente()} disabled={!itemParaAdicionar || carregandoAdicao || salvando}>
+            {carregandoAdicao ? 'Carregando…' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+      <div className="lista-ingredientes">
+        {ingredientes.map((item, index) => {
+          const semConversao = item.conversoes.length === 0;
+          const justificativaObrigatoria = itemTemDivergencia(item);
+          return (
+            <div key={`${item.itemId}-${index}`} className={`ingrediente-item ${item.removido ? 'ingrediente-removido' : ''}`}>
+              <div className="ingrediente-detalhe">
+                <div className="ingrediente-titulo-linha">
+                  <h3>{item.nome}</h3>
+                  {item.removido && <span className="estado-badge">Removido</span>}
+                  {item.origem === 'adicionado' && !item.removido && <span className="estado-badge">Adicionado</span>}
+                </div>
+                {item.origem === 'receita' ? (
+                  <>
+                    <p>Quantidade-base: {item.quantidadeBase} {item.medidaOriginal}</p>
+                    <p>Esperada para {totalExibicao} alunos: {item.quantidadeEsperada} {item.medidaOriginal}</p>
+                  </>
+                ) : <p>Ingrediente fora da receita planejada.</p>}
+              </div>
+              <div className="ingrediente-controles">
+                <label htmlFor={`quantidade-${item.itemId}`}>Quantidade final</label>
+                <input
+                  id={`quantidade-${item.itemId}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.quantidadeAtual}
+                  onChange={(evento) => atualizarQuantidade(index, evento.target.value)}
+                  disabled={salvando || item.removido}
+                  aria-describedby={`ajuda-quantidade-${item.itemId}`}
+                />
+                <span id={`ajuda-quantidade-${item.itemId}`} className="campo-ajuda">Esta é a quantidade enviada para a baixa.</span>
+                <label htmlFor={`medida-${item.itemId}`}>Medida cadastrada</label>
+                <select
+                  id={`medida-${item.itemId}`}
+                  value={item.medidaSelecionada}
+                  onChange={(evento) => atualizarMedida(index, evento)}
+                  disabled={semConversao || salvando}
+                  aria-invalid={semConversao || item.medidaSelecionada === ''}
+                >
+                  <option value="">Selecione uma medida</option>
+                  {item.conversoes.map((conversao) => (
+                    <option key={conversao.id} value={conversao.medida_caseira}>{conversao.medida_caseira}</option>
+                  ))}
+                </select>
+                {semConversao && <p className="campo-erro">Nenhuma conversão cadastrada. Solicite ao admin o cadastro em Itens/Conversões.</p>}
+                {justificativaObrigatoria && (
+                  <div className="justificativa-controle">
+                    <label htmlFor={`justificativa-${item.itemId}`}>
+                      {item.removido ? 'Justificativa da remoção' : 'Justificativa da alteração'}
+                    </label>
+                    <textarea
+                      id={`justificativa-${item.itemId}`}
+                      value={item.justificativa}
+                      onChange={(evento) => atualizarJustificativa(index, evento.target.value)}
+                      aria-describedby={`ajuda-justificativa-${item.itemId}`}
+                      aria-invalid={item.justificativa.trim() === ''}
+                      rows={3}
+                      placeholder="Explique a divergência desta quantidade"
+                    />
+                    <span id={`ajuda-justificativa-${item.itemId}`} className="campo-ajuda">
+                      Obrigatória para alterações, inclusões e remoções.
+                    </span>
+                  </div>
+                )}
+                <button type="button" className="botao-secundario botao-remover" onClick={() => alternarRemocao(index)} disabled={salvando}>
+                  {item.removido ? 'Restaurar ingrediente' : 'Remover ingrediente'}
+                </button>
+              </div>
+              {saldos[item.itemId] && <p className="saldo-atual">Saldo após a última leitura: {saldos[item.itemId].saldo_atual} {saldos[item.itemId].unidade_interna}</p>}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
 
   return (
     <div className="cozinha-container">
@@ -462,10 +650,12 @@ export default function PainelCozinha() {
                setErroCarregamento(null);
                entradaSelecionadaAtual.current = null;
                setEntradaSelecionada(null);
+               setSlotAvulso(null);
               setIngredientes([]);
               setErroReceita(null);
               setErroEnvio(null);
               setSlotConfirmado(null);
+              setMensagemSucesso(null);
               setDataReferencia(evento.target.value);
             }}
           />
@@ -490,7 +680,7 @@ export default function PainelCozinha() {
       {!carregando && !erroCarregamento && entradasDoDia.length === 0 && (
         <section className="estado-vazio" aria-labelledby="vazio-cozinha-titulo">
           <h2 id="vazio-cozinha-titulo">Nenhum planejamento para hoje</h2>
-          <p>A secretaria ainda não publicou um prato para este horário. Consulte o planejamento antes de lançar uma refeição.</p>
+          <p>A secretaria ainda não publicou um prato para este horário. Use o lançamento avulso abaixo para registrar uma refeição fora do planejamento.</p>
         </section>
       )}
 
@@ -533,9 +723,42 @@ export default function PainelCozinha() {
             })}
           </div>
         </section>
+
+        <section className="avulso-secao" aria-labelledby="avulso-titulo">
+          <div className="secao-titulo">
+            <div>
+              <p className="cozinha-eyebrow">Fora do planejamento</p>
+              <h2 id="avulso-titulo">Lançamento avulso</h2>
+            </div>
+            <p className="ajuda-auditoria">Registre uma refeição sem prato planejado: escolha o período e informe os ingredientes servidos.</p>
+          </div>
+          {alunosConfig === null ? (
+            <p className="estado-vazio">
+              A configuração de alunos por período ainda não foi definida pelo admin.
+            </p>
+          ) : (
+            <div className="avulso-controles">
+              <label htmlFor="slot-avulso">Período da refeição</label>
+              <select
+                id="slot-avulso"
+                value={slotAvulso ?? ''}
+                onChange={(evento) => {
+                  if (evento.target.value) void abrirAvulso(evento.target.value as SlotRefeicao);
+                }}
+                disabled={salvando}
+              >
+                <option value="">Selecione o período</option>
+                {SLOTS_REFEICAO.map((slot) => (
+                  <option key={slot} value={slot}>{slot}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {mensagemSucesso && <p className="mensagem-sucesso" role="status">{mensagemSucesso}</p>}
+        </section>
       </main>
 
-      {entradaSelecionada && (
+      {(entradaSelecionada || slotAvulso) && (
         <div className="modal-overlay">
           <section
             ref={dialogRef}
@@ -547,8 +770,12 @@ export default function PainelCozinha() {
           >
             <header className="modal-header">
               <div>
-                <p className="cozinha-eyebrow">{entradaSelecionada.tipo_refeicao}</p>
-                <h2 id="editor-titulo">{entradaSelecionada.tipo_refeicao} — {entradaSelecionada.nome_refeicao}</h2>
+                <p className="cozinha-eyebrow">{slotAvulso ? 'Registro manual' : entradaSelecionada?.tipo_refeicao}</p>
+                <h2 id="editor-titulo">
+                  {slotAvulso
+                    ? `Lançamento avulso — ${slotAvulso}`
+                    : `${entradaSelecionada?.tipo_refeicao} — ${entradaSelecionada?.nome_refeicao}`}
+                </h2>
               </div>
               <button ref={botaoFecharRef} type="button" className="botao-fechar" onClick={fecharEditor} disabled={salvando}>Fechar</button>
             </header>
@@ -562,13 +789,27 @@ export default function PainelCozinha() {
               </div>
             )}
 
-            <form onSubmit={handleFinalizar}>
-                {totalDoSlot === null ? (
-                  <p className="estado-vazio">
-                    A configuração de alunos por período ainda não foi definida pelo admin.
-                  </p>
-                ) : (
-                  <>
+            {slotAvulso ? (
+              <form onSubmit={handleFinalizarAvulso}>
+                <p className="ajuda-auditoria">
+                  Não há receita planejada para este lançamento: as quantidades informadas abaixo são a baixa do estoque.
+                </p>
+                {controlesIngredientes}
+                {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
+                <footer className="modal-acoes">
+                  <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
+                  <button type="submit" className="botao-primario" disabled={salvando || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
+                    {salvando ? 'Registrando…' : 'Confirmar lançamento avulso'}
+                  </button>
+                </footer>
+              </form>
+            ) : entradaSelecionada ? (
+              totalDoSlot === null ? (
+                <p className="estado-vazio">
+                  A configuração de alunos por período ainda não foi definida pelo admin.
+                </p>
+              ) : (
+                <form onSubmit={handleFinalizar}>
                     <p className="ajuda-auditoria">
                       Receita calculada para {totalDoSlot} alunos, conforme a configuração de alunos por período.
                     </p>
@@ -584,115 +825,22 @@ export default function PainelCozinha() {
                       </div>
                     )}
                     {salvando && <p className="estado-loading" role="status" aria-live="polite">Salvando refeição e atualizando estoque…</p>}
-                  </>
-                )}
+                    {receitaCarregada && !carregandoReceita && !erroReceita && (
+                      <>
+                        <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
+                        {controlesIngredientes}
+                      </>
+                    )}
+                    <footer className="modal-acoes">
+                      <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
+                      <button type="submit" className="botao-primario" disabled={salvando || !receitaCarregada || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
+                        {salvando ? 'Registrando…' : 'Confirmar refeição e dar baixa'}
+                      </button>
+                    </footer>
+                  </form>
+              )
+            ) : null}
 
-                {totalDoSlot !== null && receitaCarregada && !carregandoReceita && !erroReceita && (
-                  <>
-                    <p className="ajuda-auditoria">Alterações, inclusões e remoções exigem justificativa por ingrediente para a prestação de contas do PNAE.</p>
-                    <div className="adicionar-ingrediente">
-                      <label htmlFor="item-para-adicionar">Adicionar ingrediente</label>
-                      <div className="adicionar-ingrediente-controles">
-                        <select
-                          id="item-para-adicionar"
-                          value={itemParaAdicionar}
-                          onChange={(evento) => setItemParaAdicionar(evento.target.value)}
-                          disabled={carregandoAdicao || salvando}
-                        >
-                          <option value="">Selecione um item cadastrado</option>
-                          {itensCatalogo
-                            .filter((catalogoItem) => !ingredientes.some((ingrediente) => ingrediente.itemId === catalogoItem.id))
-                            .map((catalogoItem) => <option key={catalogoItem.id} value={catalogoItem.id}>{catalogoItem.nome}</option>)}
-                        </select>
-                        <button type="button" className="botao-secundario" onClick={() => void adicionarIngrediente()} disabled={!itemParaAdicionar || carregandoAdicao || salvando}>
-                          {carregandoAdicao ? 'Carregando…' : 'Adicionar'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="lista-ingredientes">
-                      {ingredientes.map((item, index) => {
-                        const semConversao = item.conversoes.length === 0;
-                        const justificativaObrigatoria = itemTemDivergencia(item);
-                        return (
-                          <div key={`${item.itemId}-${index}`} className={`ingrediente-item ${item.removido ? 'ingrediente-removido' : ''}`}>
-                            <div className="ingrediente-detalhe">
-                              <div className="ingrediente-titulo-linha">
-                                <h3>{item.nome}</h3>
-                                {item.removido && <span className="estado-badge">Removido</span>}
-                                {item.origem === 'adicionado' && !item.removido && <span className="estado-badge">Adicionado</span>}
-                              </div>
-                              {item.origem === 'receita' ? (
-                                <>
-                                  <p>Quantidade-base: {item.quantidadeBase} {item.medidaOriginal}</p>
-                                  <p>Esperada para {totalDoSlot} alunos: {item.quantidadeEsperada} {item.medidaOriginal}</p>
-                                </>
-                              ) : <p>Ingrediente fora da receita planejada.</p>}
-                            </div>
-                            <div className="ingrediente-controles">
-                              <label htmlFor={`quantidade-${item.itemId}`}>Quantidade final</label>
-                              <input
-                                id={`quantidade-${item.itemId}`}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.quantidadeAtual}
-                                onChange={(evento) => atualizarQuantidade(index, evento.target.value)}
-                                disabled={salvando || item.removido}
-                                aria-describedby={`ajuda-quantidade-${item.itemId}`}
-                              />
-                              <span id={`ajuda-quantidade-${item.itemId}`} className="campo-ajuda">Esta é a quantidade enviada para a baixa.</span>
-                              <label htmlFor={`medida-${item.itemId}`}>Medida cadastrada</label>
-                              <select
-                                id={`medida-${item.itemId}`}
-                                value={item.medidaSelecionada}
-                                onChange={(evento) => atualizarMedida(index, evento)}
-                                disabled={semConversao || salvando}
-                                aria-invalid={semConversao || item.medidaSelecionada === ''}
-                              >
-                                <option value="">Selecione uma medida</option>
-                                {item.conversoes.map((conversao) => (
-                                  <option key={conversao.id} value={conversao.medida_caseira}>{conversao.medida_caseira}</option>
-                                ))}
-                              </select>
-                              {semConversao && <p className="campo-erro">Nenhuma conversão cadastrada. Solicite ao admin o cadastro em Itens/Conversões.</p>}
-                              {justificativaObrigatoria && (
-                                <div className="justificativa-controle">
-                                  <label htmlFor={`justificativa-${item.itemId}`}>
-                                    {item.removido ? 'Justificativa da remoção' : 'Justificativa da alteração'}
-                                  </label>
-                                  <textarea
-                                    id={`justificativa-${item.itemId}`}
-                                    value={item.justificativa}
-                                    onChange={(evento) => atualizarJustificativa(index, evento.target.value)}
-                                    aria-describedby={`ajuda-justificativa-${item.itemId}`}
-                                    aria-invalid={item.justificativa.trim() === ''}
-                                    rows={3}
-                                    placeholder="Explique a divergência desta quantidade"
-                                  />
-                                  <span id={`ajuda-justificativa-${item.itemId}`} className="campo-ajuda">
-                                    Obrigatória para alterações, inclusões e remoções.
-                                  </span>
-                                </div>
-                              )}
-                              <button type="button" className="botao-secundario botao-remover" onClick={() => alternarRemocao(index)} disabled={salvando}>
-                                {item.removido ? 'Restaurar ingrediente' : 'Remover ingrediente'}
-                              </button>
-                            </div>
-                            {saldos[item.itemId] && <p className="saldo-atual">Saldo após a última leitura: {saldos[item.itemId].saldo_atual} {saldos[item.itemId].unidade_interna}</p>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                <footer className="modal-acoes">
-                  <button type="button" className="botao-secundario" onClick={fecharEditor} disabled={salvando}>Fechar</button>
-                  <button type="submit" className="botao-primario" disabled={salvando || totalDoSlot === null || !receitaCarregada || ingredientes.length === 0 || ingredientes.some((item) => item.conversoes.length === 0 || item.medidaSelecionada === '' || (itemTemDivergencia(item) && item.justificativa.trim() === ''))}>
-                    {salvando ? 'Registrando…' : 'Confirmar refeição e dar baixa'}
-                  </button>
-                </footer>
-              </form>
             {confirmarDescarte && (
               <div className="confirmacao-descarte" role="alertdialog" aria-modal="true" aria-labelledby="descarte-titulo">
                 <h3 id="descarte-titulo">Descartar alterações?</h3>

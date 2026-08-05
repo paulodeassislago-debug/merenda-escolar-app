@@ -205,3 +205,18 @@ export interface RefeicaoHistorico {
   planejamento_id: number | null;
   itens: RefeicaoItemHistorico[];
 }
+
+// --- Lançamento de refeição (D-16b/R-5: payload por slot, sem tipo/qtd do cliente) ---
+
+export interface RefeicaoItemRequest {
+  item_id: number;
+  quantidade: number;
+  medida_caseira: string;
+  justificativa?: string | null;
+}
+
+export interface RefeicaoCreatePayload {
+  slot: string;
+  planejamento_id?: number | null;
+  itens: RefeicaoItemRequest[];
+}
