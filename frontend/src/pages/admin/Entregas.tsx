@@ -10,8 +10,9 @@ import type {
   Conversao,
   EntregaResumo,
   EntregaDetalhe,
-  EntregaItemRequest,
+  EntregaCreatePayload,
   Item,
+  OrigemEntrega,
 } from '../../types';
 import { UNIDADES_SUGERIDAS } from './constants';
 import { parseNfe } from './nfe';
@@ -29,6 +30,14 @@ interface LinhaEdicao {
   removida?: boolean;
 }
 
+/** Data de hoje no fuso local (YYYY-MM-DD) — default do campo data da entrega (D-09). */
+function dataHojeLocal(): string {
+  const agora = new Date();
+  const mes = String(agora.getMonth() + 1).padStart(2, '0');
+  const dia = String(agora.getDate()).padStart(2, '0');
+  return `${agora.getFullYear()}-${mes}-${dia}`;
+}
+
 export default function Entregas() {
   // Listagem
   const [entregas, setEntregas] = useState<EntregaResumo[]>([]);
@@ -40,8 +49,14 @@ export default function Entregas() {
   // Fluxo: 'nenhum' | 'escolha' | 'editando'
   const [fluxo, setFluxo] = useState<'nenhum' | 'escolha' | 'editando'>('nenhum');
   const [linhas, setLinhas] = useState<LinhaEdicao[]>([]);
-  const [numeroNota, setNumeroNota] = useState<string | null>(null);
   const [emitente, setEmitente] = useState<string | null>(null);
+
+  // Campos novos da entrega (D-05/D-07/D-09)
+  const [origem, setOrigem] = useState<OrigemEntrega>('manual');
+  const [dataEntrega, setDataEntrega] = useState<string>(dataHojeLocal());
+  const [fornecedorId, setFornecedorId] = useState<number | null>(null);
+  const [notaNumero, setNotaNumero] = useState<string>('');
+  const [observacoes, setObservacoes] = useState<string>('');
 
   // Justificativa
   const [justificativaPendente, setJustificativaPendente] = useState<{
@@ -130,7 +145,11 @@ export default function Entregas() {
   };
 
   const iniciarManual = () => {
-    setNumeroNota(null);
+    setOrigem('manual');
+    setDataEntrega(dataHojeLocal());
+    setFornecedorId(null);
+    setNotaNumero('');
+    setObservacoes('');
     setEmitente(null);
     setLinhas([]);
     setFluxo('editando');
@@ -354,7 +373,11 @@ export default function Entregas() {
         };
       });
       setLinhas(novasLinhas);
-      setNumeroNota(resultado.numeroNota);
+      setOrigem('xml');
+      setDataEntrega(resultado.dataEmissao ?? dataHojeLocal());
+      setNotaNumero(resultado.numeroNota ?? '');
+      setFornecedorId(null);
+      setObservacoes('');
       setEmitente(resultado.emitente);
       setFluxo('editando');
       setErroSubmit(null);
@@ -397,6 +420,24 @@ export default function Entregas() {
       return;
     }
 
+    // Guarda de UI: campos do cabeçalho do form (T-08-04 — espelha as 400/422 do backend)
+    if (!dataEntrega) {
+      setErroSubmit('Informe a data da entrega.');
+      return;
+    }
+    if (fornecedorId === null) {
+      setErroSubmit('Selecione o fornecedor da entrega.');
+      return;
+    }
+    if (origem === 'manual' && observacoes.trim() === '') {
+      setErroSubmit('Informe as observações da entrega manual.');
+      return;
+    }
+    if (origem === 'xml' && notaNumero.trim() === '') {
+      setErroSubmit('Informe o número da nota fiscal.');
+      return;
+    }
+
     // Guarda de UI: verificar justificativas pendentes
     const semJustificativa = linhas.filter(
       (l) =>
@@ -412,7 +453,12 @@ export default function Entregas() {
 
     setSalvando(true);
 
-    const payload: { itens: EntregaItemRequest[] } = {
+    const payload: EntregaCreatePayload = {
+      origem,
+      data_entrega: dataEntrega,
+      fornecedor_id: fornecedorId,
+      nota_numero: origem === 'xml' ? notaNumero : null,
+      observacoes: origem === 'manual' ? observacoes : null,
       itens: linhas.map((l) => ({
         item_id: l.itemId!,
         quantidade: l.quantidade,
@@ -434,8 +480,12 @@ export default function Entregas() {
       setSucessoMsg(resposta.mensagem);
       setFluxo('nenhum');
       setLinhas([]);
-      setNumeroNota(null);
+      setNotaNumero('');
       setEmitente(null);
+      setOrigem('manual');
+      setDataEntrega(dataHojeLocal());
+      setFornecedorId(null);
+      setObservacoes('');
       await recarregar();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -633,15 +683,15 @@ export default function Entregas() {
       {fluxo === 'editando' && (
         <div className="card">
           {/* Cabeçalho da NF (XML) */}
-          {numeroNota && (
+          {origem === 'xml' && notaNumero && (
             <div className="nf-header">
-              NF nº {numeroNota}{emitente ? ` — ${emitente}` : ''}
+              NF nº {notaNumero}{emitente ? ` — ${emitente}` : ''}
             </div>
           )}
 
           <div className="editor-header">
             <h2 className="editor-titulo">
-              {numeroNota ? 'Revisão da nota fiscal' : 'Lançamento manual'}
+              {origem === 'xml' ? 'Revisão da nota fiscal' : 'Lançamento manual'}
             </h2>
             <div className="acoes-celula">
               <button
@@ -651,12 +701,65 @@ export default function Entregas() {
                   setFluxo('nenhum');
                   setErroSubmit(null);
                   setLinhas([]);
-                  setNumeroNota(null);
+                  setNotaNumero('');
                   setEmitente(null);
+                  setOrigem('manual');
+                  setDataEntrega(dataHojeLocal());
+                  setFornecedorId(null);
+                  setObservacoes('');
                 }}
               >
                 Cancelar
               </button>
+            </div>
+          </div>
+
+          {/* Campos do cabeçalho do form (D-05/D-07/D-09) */}
+          <div className="entrega-campos-form">
+            <div className="form-group">
+              <label htmlFor="data-entrega">Data da entrega</label>
+              <input
+                id="data-entrega"
+                type="date"
+                className="form-input"
+                value={dataEntrega}
+                onChange={(e) => setDataEntrega(e.target.value)}
+                required
+              />
+            </div>
+
+            {origem === 'xml' && (
+              <div className="form-group">
+                <label htmlFor="nota-numero">Número da nota</label>
+                <input
+                  id="nota-numero"
+                  type="text"
+                  className="form-input"
+                  value={notaNumero}
+                  onChange={(e) => setNotaNumero(e.target.value)}
+                  placeholder="Número da NF-e"
+                  required
+                />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label htmlFor="observacoes">
+                Observações{origem === 'manual' ? ' (obrigatório)' : ''}
+              </label>
+              <textarea
+                id="observacoes"
+                className="form-input"
+                rows={3}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                aria-required={origem === 'manual'}
+                placeholder={
+                  origem === 'manual'
+                    ? 'Descreva a entrega (origem, itens recebidos, notas...)'
+                    : 'Observações adicionais (opcional)'
+                }
+              />
             </div>
           </div>
 

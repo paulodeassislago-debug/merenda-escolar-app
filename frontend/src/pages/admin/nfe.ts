@@ -22,6 +22,8 @@ export interface NfeParseResult {
   linhas: LinhaNfe[];
   numeroNota: string | null;
   emitente: string | null;
+  /** Data de emissão da NF (ide.dhEmi, YYYY-MM-DD) — pré-preenche data_entrega (D-09). */
+  dataEmissao: string | null;
 }
 
 /**
@@ -67,6 +69,15 @@ export function parseNfe(xmlText: string, itens: Item[]): NfeParseResult {
   const numeroNota = (ide?.nNF as string | undefined) ?? null;
   const emitente = (emit?.xNome as string | undefined) ?? null;
 
+  // Data de emissão (ide.dhEmi, ISO 8601) — primeiro segmento é a data YYYY-MM-DD.
+  // D-09: pré-preenche data_entrega; o usuário permanece com o campo editável (confirmável).
+  const dhEmi = String(ide?.dhEmi ?? '');
+  const fatiaData = dhEmi.slice(0, 10);
+  const dataEmissao =
+    /^\d{4}-\d{2}-\d{2}$/.test(fatiaData) && !Number.isNaN(new Date(fatiaData).getTime())
+      ? fatiaData
+      : null;
+
   const linhas: LinhaNfe[] = [];
 
   for (const det of dets) {
@@ -96,5 +107,5 @@ export function parseNfe(xmlText: string, itens: Item[]): NfeParseResult {
     });
   }
 
-  return { linhas, numeroNota, emitente };
+  return { linhas, numeroNota, emitente, dataEmissao };
 }
