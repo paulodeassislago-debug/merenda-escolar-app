@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, fetchJson } from '../api';
 import { useAuth } from '../auth-context';
 import type { EntregaResumo, Item, PlanejamentoEntrada, RefeicaoHistorico } from '../types';
-import { LIMIAR_BAIXO_ESTOQUE, SLOTS_REFEICAO } from './admin/constants';
+import { SLOTS_REFEICAO } from './admin/constants';
 import './DashboardGestao.css';
 
 type SectionKey = 'estoque' | 'refeicoes' | 'planejamento' | 'entregas';
@@ -187,7 +187,7 @@ export default function DashboardGestao() {
     navigate('/', { replace: true });
   };
 
-  const itensBaixoEstoque = itens.filter((item) => saldoExibicao(item) < LIMIAR_BAIXO_ESTOQUE);
+  const itensBaixoEstoque = itens.filter((item) => saldoExibicao(item) < item.limiar);
 
   return (
     <div className="gestao-page">
@@ -238,7 +238,7 @@ export default function DashboardGestao() {
       <section className="gestao-secao" aria-labelledby="gestao-estoque-titulo">
         <div className="gestao-section-heading">
           <div><p className="gestao-kicker">Saldo atual</p><h2 id="gestao-estoque-titulo">Estoque</h2></div>
-          <p className="gestao-ajuda">O alerta considera o limiar de {LIMIAR_BAIXO_ESTOQUE} unidades na unidade de exibição.</p>
+          <p className="gestao-ajuda">O alerta considera o limiar configurado de cada item na unidade de exibição.</p>
         </div>
         {carregandoEstoque && <p className="gestao-status" role="status" aria-live="polite">Carregando estoque…</p>}
         <ErroSecao erro={erroEstoque} onRetry={() => carregarEstoque()} onSessionExpired={handleSessaoExpirada} />
@@ -250,7 +250,7 @@ export default function DashboardGestao() {
               <thead><tr><th scope="col">Código</th><th scope="col">Item</th><th scope="col">Unidade</th><th scope="col">Saldo</th><th scope="col">Status</th></tr></thead>
               <tbody>{itens.map((item) => {
                 const saldo = saldoExibicao(item);
-                const baixoEstoque = saldo < LIMIAR_BAIXO_ESTOQUE;
+                const baixoEstoque = saldo < item.limiar;
                 return <tr key={item.id}><td>#{item.id}</td><td className="gestao-texto-longo">{item.nome}</td><td>{item.unidade_oficial}</td><td>{saldo.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td><td><span className={baixoEstoque ? 'gestao-status-badge gestao-status-badge-alerta' : 'gestao-status-badge'}>{baixoEstoque ? 'Baixo estoque' : 'Estável'}</span></td></tr>;
               })}</tbody>
             </table>
