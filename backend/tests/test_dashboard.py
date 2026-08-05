@@ -56,6 +56,7 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
             "origem": "xml",
             "data_entrega": "2026-08-05",
             "fornecedor_id": fornecedor["id"],
+            "nota_numero": "NF-TESTE",  # D-07: origem xml exige nota
             "itens": [{"item_id": item["id"], "quantidade": 10, "acao": "recebido"}],
         },
         headers=_auth(admin_token),
