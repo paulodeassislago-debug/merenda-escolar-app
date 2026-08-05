@@ -1,112 +1,133 @@
 ---
 phase: 07-finalizacao
-reviewed: 2026-08-04T22:30:00Z
+reviewed: 2026-08-05T00:00:00Z
 depth: standard
 files_reviewed: 3
 files_reviewed_list:
+  - .gitignore
   - frontend/src/pages/CardapioPublico.tsx
   - frontend/src/pages/CardapioPublico.css
-  - .gitignore
 findings:
   critical: 0
-  warning: 2
-  info: 4
-  total: 6
+  warning: 3
+  info: 5
+  total: 8
 status: issues_found
 ---
 
-# Fase 7: Relatório de Revisão de Código
+# Phase 07: Code Review Report
 
-**Revisado:** 2026-08-04T22:30:00Z
-**Profundidade:** standard
-**Arquivos revisados:** 3
+**Reviewed:** 2026-08-05T00:00:00Z
+**Depth:** standard
+**Files Reviewed:** 3
 **Status:** issues_found
 
-## Sumário
+## Summary
 
-Revisão adversária dos artefatos da fase 07 (PUBLIC-02): `CardapioPublico.tsx`, `CardapioPublico.css` e `.gitignore`, em modo standard com verificação cruzada do contrato real — endpoint `GET /publico/cardapio` (`backend/main.py:1118`), `SLOTS_PLANEJAMENTO` (`backend/main.py:41`), `fetchJson` (`frontend/src/api.ts`), rota pública `/cardapio` (`App.tsx:25`), `SLOTS_REFEICAO` (`admin/constants.ts:8`), 07-UI-SPEC.md e o modelo de ameaças T-07-01-01..04 do 07-01-PLAN.md. Gates executados nesta revisão: `npm run lint` ✅, `npm run build` ✅ (React 19.2.8 — `onToggle` nativo suportado).
+Adversarial review of the Phase 07 (finalizacao) public cardápio work: `CardapioPublico.tsx`, `CardapioPublico.css`, and `.gitignore`. Cross-file verification performed against the real contract: `GET /publico/cardapio` (`backend/main.py:1118-1148`), `SLOTS_PLANEJAMENTO` (`backend/main.py:41`), the `/planejamento` upsert (`backend/main.py:615-657`), `fetchJson`/`fetchWithAuth` (`frontend/src/api.ts`), route wiring (`App.tsx:25`), `SLOTS_REFEICAO` (`frontend/src/pages/admin/constants.ts:8`), `Planejamento.tsx` slot usage, `main.tsx` (StrictMode, no ErrorBoundary), and `index.css` CSS variables.
 
-**Avaliação geral:** o contrato é cumprido com fidelidade — normalização esparsa correta (nomes dos slots casam 1:1 com `SLOTS_PLANEJAMENTO` do backend), disclosure nome-only sem vazamento de campos técnicos (T-07-01-02 mitigado), nenhum vetor XSS (todos os nomes controlados pelo banco renderizados como texto React; nenhum `dangerouslySetInnerHTML`/HTML bruto — T-07-01-01 mitigado), rota e endpoint públicos preservados (T-07-01-03), copys exatos do contrato, estados loading/erro/vazio/parcial distintos, grid 1/2/4 colunas sem overflow e todos os tokens CSS existentes em `index.css`. Não há achados críticos. Os achados abaixo são dois warnings de correção de comportamento visível/estado e quatro itens de robustez.
+**Verified correct:**
+- Slot names match 1:1 across frontend (`SLOTS_REFEICAO`) and backend (`SLOTS_PLANEJAMENTO` = `['Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Janta']`), so `normalizarQuatroSlots` correctly maps sparse responses; planning entries created in `Planejamento.tsx` use the same names, so the public page will actually match planned meals.
+- No XSS vectors: all database-controlled strings rendered as React text nodes; no `dangerouslySetInnerHTML`.
+- Public route has no auth wrapper; endpoint has no auth dependency — the page works without login. The stale-JWT header sent by `fetchWithAuth` is harmless since the endpoint ignores auth.
+- Error/retry, loading, empty, and per-slot fallback states are distinct and reachable.
+- `.gitignore` change is functional: `backend/merenda.db.bak-20260804` exists on disk and `git status` is clean — no tracked-then-ignored database files.
+- CSS variables all resolve (`--erro`, `--raio`, `--sombra-card`, `--verde-vivo`, `--verde-escuro`, `--texto-suave`, `--fonte-serif`, `--fonte-sans` in `index.css`).
+
+No critical issues found. Three warnings (one visible rendering defect, two robustness gaps) and five info items below.
 
 ## Warnings
 
-### WR-01: `text-transform: capitalize` corrompe a data em pt-BR
+### WR-01: `text-transform: capitalize` corrupts the pt-BR date
 
-**Arquivo:** `frontend/src/pages/CardapioPublico.css:47`
-**Problema:** a regra `text-transform: capitalize` aplica caixa alta à primeira letra de **cada palavra** do texto. Como `toLocaleDateString('pt-BR', ...)` já retorna "segunda-feira, 4 de agosto de 2026", o resultado renderizado é **"Segunda-feira, 4 De Agosto De 2026"** — preposições "de" capitalizadas, fora do padrão pt-BR. A regra provavelmente foi adicionada para capitalizar "segunda-feira" (que já vem minúsculo do locale), mas afeta todas as palavras. É um defeito de renderização visível na superfície pública, principal vitrine da página.
-**Fix:** remover a regra CSS (a saída de `toLocaleDateString('pt-BR')` já está correta em caixa baixa) ou, se a capitalização da primeira letra for desejada, fazê-la em JS:
+**File:** `frontend/src/pages/CardapioPublico.css:47`
+**Issue:** `text-transform: capitalize` capitalizes the first letter of **every word**. `toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })` returns lowercase ("sexta-feira, 5 de agosto de 2026"), so the rendered header becomes "Sexta-feira, 5 De Agosto De 2026" — prepositions "De" capitalized, breaking standard pt-BR orthography. This is the most visible surface of the page (public kiosk/TV screen).
+**Fix:** Remove the rule; the locale output is already correct:
 ```css
 .publico-data {
-  /* remover: text-transform: capitalize; */
-}
-```
-```tsx
-// alternativa JS, se quiser manter a primeira letra maiúscula:
-function formatarDataHoje(): string {
-  const texto = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
-  return texto.charAt(0).toUpperCase() + texto.slice(1); // "Segunda-feira, 4 de agosto de 2026"
+  margin: 0;
+  font-family: var(--fonte-serif);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--texto-suave);
+  /* remove: text-transform: capitalize; */
 }
 ```
 
-### WR-02: `ingredientesAbertos` não é limpo em `carregarCardapio` — rótulo do disclosure pode dessincronizar do DOM
+### WR-02: Unvalidated payload shape can crash the whole app during render
 
-**Arquivo:** `frontend/src/pages/CardapioPublico.tsx:51-59`
-**Problema:** o retry limpa `erro`, `refeicoes` e `carregando` ("Clear transient state before retry" — mitigação documentada de T-07-01-04), mas não `ingredientesAbertos`. O rótulo do `<summary>` é derivado desse estado (`ingredientesAbertos[slot] ? 'Ocultar ingredientes' : 'Ver ingredientes'`, linha 127-129), enquanto a abertura real do `<details>` é nativa e não controlada. Se qualquer refetch futuro ocorrer com o registro populado (ex.: navegação por data, adiada no backlog da Fase 8; ou o duplo efeito do StrictMode em dev, que dispara dois fetches no mount), o `<details>` recém-renderizado nasce fechado mas exibirá "Ocultar ingredientes" — estado errado e auto-curável só na próxima interação do usuário. Hoje inalcançável pela UI (o botão de retry some ao ser clicado e não há refetch com disclosure aberto), mas o reset incompleto contradiz a mitigação declarada e o padrão dos outros estados.
-**Fix:** adicionar o reset no início de `carregarCardapio`:
+**File:** `frontend/src/pages/CardapioPublico.tsx:55-56, 36`
+**Issue:** `fetchJson` only checks `resposta.ok` (`api.ts:38-42`); a 200 with `null`, an object, or a string passes through and is stored via `setRefeicoes(resposta)`. `normalizarQuatroSlots` then calls `resposta.map(...)` **during render** (line 36, invoked at line 107). A non-array payload throws a TypeError at render time, which the `.catch()` in the fetch chain cannot intercept (it only handles promise rejections). `main.tsx` renders `<App />` with no ErrorBoundary, so the entire frontend white-screens — including the authenticated pages, since the crash happens during React render of the public route. This is the public endpoint of an unauthenticated surface; a backend hiccup (e.g., a future shape change returning `{"detail": ...}` with 200, or a proxy returning `null`) takes down the kiosk with no recovery.
+**Fix:** Guard the shape before storing, or inside the normalizer:
 ```tsx
+.then((resposta) => setRefeicoes(Array.isArray(resposta) ? resposta : []))
+```
+```ts
+function normalizarQuatroSlots(resposta: RefeicaoPublica[]): RefeicaoPublica[] {
+  if (!Array.isArray(resposta)) return SLOTS_REFEICAO.map((slot) =>
+    ({ tipo_refeicao: slot, nome_refeicao: null, ingredientes: [] }));
+  // ...
+}
+```
+
+### WR-03: Disclosure label desyncs from the DOM after a retry
+
+**File:** `frontend/src/pages/CardapioPublico.tsx:49, 54, 66-68, 120-130`
+**Issue:** `ingredientesAbertos` mirrors the native `<details>` open state via `onToggle`, but `carregarCardapio` never resets it. Flow to reproduce: user opens a disclosure (state `{ 'Almoço': true }`, DOM open) → a later fetch fails → error state hides the grid → user clicks "Tentar novamente" → grid re-mounts with fresh `<details>` elements (native `open` defaults to closed) while `ingredientesAbertos['Almoço']` is still `true` → the summary label reads "Ocultar ingredientes" on a **closed** disclosure until the user toggles it again. Visible state inconsistency on the public page's primary interaction.
+**Fix:** Reset the mirrored state when reloading:
+```ts
 const carregarCardapio = () => {
   setCarregando(true);
   setErro(null);
   setRefeicoes([]);
-  setIngredientesAbertos({});
-  fetchJson<RefeicaoPublica[]>('/publico/cardapio')
-    .then((resposta) => setRefeicoes(resposta))
-    .catch(() => setErro('Não foi possível carregar o cardápio de hoje. Tente novamente.'))
-    .finally(() => setCarregando(false));
+  setIngredientesAbertos({});   // ← reset mirror
+  // ...
 };
 ```
+Alternatively, drop the mirror entirely and derive the label from the DOM: `evento.currentTarget.open` in `onToggle` is the source of truth; use `(e) => e.currentTarget.open ? 'Ocultar ingredientes' : 'Ver ingredientes'` inside a state stored per slot only when needed.
 
 ## Info
 
-### IN-01: Corrida de respostas fora de ordem no loader (sem AbortController/sequenciamento)
+### IN-01: No request cancellation — overlapping retries can interleave
 
-**Arquivo:** `frontend/src/pages/CardapioPublico.tsx:55-58`
-**Problema:** o ciclo fetch → `.then`/`.catch`/`.finally` não descarta respostas obsoletas. Com o StrictMode do React (habilitado em `main.tsx:7`), o efeito dispara dois fetches no mount em dev; se um falhar e o outro for bem-sucedido, um `.catch` tardio pode fixar `erro` mesmo com dados válidos já recebidos, e o `.finally` do primeiro pode zerar `carregando` antes do segundo terminar. O retry atual não permite clique duplo (o botão desmonta ao zerar `erro`), então o impacto é hoje limitado a dev; se um caminho de refetch for adicionado (navegação por data), torna-se explorável pelo usuário.
-**Fix:** guardar o request atual e ignorar respostas obsoletas — ex.: contador/ref de sequência (`if (reqAtual !== id) return;`) ou `AbortController` no `useEffect` com cleanup.
+**File:** `frontend/src/pages/CardapioPublico.tsx:51-64`
+**Issue:** `carregarCardapio` fires `fetchJson` with no `AbortController`. Rapid double-clicks on "Tentar novamente" (44px button, easily double-tapped) start overlapping requests; responses resolve out of order and the last writer wins, potentially showing stale data. Additionally, `main.tsx` wraps the app in `StrictMode`, so the empty-dep effect double-fires the fetch in dev. The eslint-disable comment acknowledges the pattern but doesn't fix the race.
+**Fix:** Add an `AbortController` per load and ignore stale responses:
+```ts
+useEffect(() => {
+  const controller = new AbortController();
+  // pass { signal: controller.signal } into fetchJson and swallow AbortError
+  return () => controller.abort();
+}, []);
+```
 
-### IN-02: Estado de carregamento sem anúncio a leitores de tela
+### IN-02: Header date (client) vs. fetched menu date (server) can disagree
 
-**Arquivo:** `frontend/src/pages/CardapioPublico.tsx:83`
-**Problema:** a mensagem `Carregando cardápio…` não tem `role="status"`/`aria-live="polite"`; a transição loading → conteúdo carregado é silenciosa para usuários de leitor de tela (o erro tem `role="alert"`, mas o sucesso e o vazio não são anunciados). O UI-SPEC exige estados compreensíveis sem depender só de cor/posição.
-**Fix:** `{carregando && <p role="status" className="publico-aviso">Carregando cardápio…</p>}`.
+**File:** `frontend/src/pages/CardapioPublico.tsx:24-31, 55`
+**Issue:** The page displays `formatarDataHoje()` computed from the client clock, but the API defaults to server-side `date.today()` (`backend/main.py:1121`). A kiosk/TV with a drifted clock, or a request crossing midnight while server and client are in different timezones, shows the header date of day X with the menu of day Y. No way for the user to detect the mismatch.
+**Fix:** Pass the date explicitly so both sides agree: `fetchJson('/publico/cardapio?data=' + formatISO(new Date()))` using the same local-date formatting as the header — or document the single-timezone deployment assumption.
 
-### IN-03: Fallbacks `??` não cobrem string vazia — prato/ingrediente em branco
+### IN-03: Slot names duplicated across frontend and backend with no drift test
 
-**Arquivo:** `frontend/src/pages/CardapioPublico.tsx:115, 134`
-**Problema:** `nome_refeicao ?? 'A definir'` e `item_nome ?? 'Ingrediente não informado'` tratam apenas `null`. Os schemas do backend (`CardapioItemCreate.nome_refeicao: str` e `ItemCreate.nome: str` — `schemas.py:43,86`) aceitam `""` sem `min_length`; um item/prato criado com nome vazio via API renderiza um `<h2>` ou `<li>` em branco em vez dos fallbacks contratuais.
-**Fix:** `refeicao.nome_refeicao?.trim() || 'A definir'` e `ingrediente.item_nome?.trim() || 'Ingrediente não informado'` (ou adicionar `min_length=1` nos schemas).
+**File:** `frontend/src/pages/CardapioPublico.tsx:37` (`SLOTS_REFEICAO` in `admin/constants.ts:8` vs `SLOTS_PLANEJAMENTO` in `backend/main.py:41`)
+**Issue:** The two constants currently match exactly (verified), and `normalizarQuatroSlots` silently drops any response entry whose `tipo_refeicao` is not in the frontend list. If the lists ever drift (backend adds/renames a slot), the public page would render all slots as "A definir" with **no error** — a silent total failure of the feature. No test asserts the contract.
+**Fix:** Add a backend test asserting `SLOTS_PLANEJAMENTO == ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]` and a frontend unit test for `normalizarQuatroSlots` covering an unknown-slot response.
 
-### IN-04: `.gitignore` não cobre backup sem sufixo de data
+### IN-04: `.gitignore` backup pattern is narrower than reality
 
-**Arquivo:** `.gitignore:2`
-**Problema:** o padrão novo `backend/merenda.db.bak-*` ignora backups datados (ex.: `merenda.db.bak-20260804`), mas um backup como `backend/merenda.db.bak` (sem sufixo, produzido por qualquer script de backup que use esse nome) escaparia ao ignore — inconsistente com a intenção do commit `9e19682` ("ignorar backups do banco").
-**Fix:** `backend/merenda.db.bak*` (remove o hífen) ou adicionar a linha `backend/merenda.db.bak`.
+**File:** `.gitignore:2`
+**Issue:** `backend/merenda.db.bak-*` only ignores backups with a dash-suffixed date. A backup named `merenda.db.bak` or `merenda.db.old` (or any future naming from the dev-db backup tooling) would be committed, leaking the dev database (which contains seeded credentials and meal data). Current files are properly ignored (`git status` clean), so this is preventive.
+**Fix:** Broaden the pattern: `backend/merenda.db.bak*` or `backend/merenda.db.*`.
+
+### IN-05: JSX indentation inside the slot map is misleading
+
+**File:** `frontend/src/pages/CardapioPublico.tsx:107-141`
+**Issue:** The `section`/`details` children of the `.map((refeicao, indice) => (` callback are indented at the same level as the `.map(` call itself, so the JSX tree structure is hard to read (the closing `))}` at line 141 doesn't visually match anything). No lint failure (no formatter enforced), but it degrades maintainability of the phase's central component.
+**Fix:** Run Prettier (or re-indent the callback body one level).
 
 ---
 
-## Notas de conformidade confirmadas (sem ação)
-
-- XSS (T-07-01-01): nenhum vetor — nomes do banco renderizados apenas como filhos de texto React; sem `dangerouslySetInnerHTML`, `innerHTML` ou atributos com conteúdo dinâmico; alt da logo estático.
-- Divulgação de informação (T-07-01-02): `quantidade`/`medida_caseira` existem apenas no tipo de transporte; nenhum campo técnico chega ao JSX.
-- Elevação de privilégio (T-07-01-03): `/cardapio` fora de `ProtectedRoute` (`App.tsx:25`); endpoint público preservado; regressão P1–P3 do `test_publico.py` cobre o contrato.
-- Normalização esparsa: `SLOTS_REFEICAO` casa exatamente com `SLOTS_PLANEJAMENTO` do backend (`main.py:41`); ordem fixa garantida; duplicatas impossíveis (backend deduplica por chave `(dia_semana, tipo_refeicao)` em `_planejamento_ativo`).
-- Copys: todos os textos exatos do contrato (07-UI-SPEC "Copywriting Contract") verificados linha a linha.
-- CSS: grid 1/2/4 colunas nos breakpoints 600/960px, `minmax(0, 1fr)` + `min-width: 0`, `overflow-wrap: anywhere`, hit area de 44px no summary, `:focus-visible` verde, escala 4/8/16/24/32/48 e pesos 400/700 — todos os 13 tokens usados existem em `index.css`.
-
----
-
-_Revisado: 2026-08-04T22:30:00Z_
-_Reviewer: agente (gsd-code-reviewer)_
-_Profundidade: standard_
+_Reviewed: 2026-08-05T00:00:00Z_
+_Reviewer: the agent (gsd-code-reviewer)_
+_Depth: standard_
