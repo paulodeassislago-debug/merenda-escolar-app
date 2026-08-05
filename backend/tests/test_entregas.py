@@ -502,6 +502,56 @@ def test_f5_detalhe_entrega_campos_novos(client, admin_user, admin_token):
     assert detalhe["observacoes"] == "Recebido no turno da manhã"
 
 
+# F6 — GET /entregas resolve o nome real do registrador e expõe as observações
+# na listagem (obs #3/#2d — id_usuario permanece; id_usuario_nome é aditivo)
+def test_f6_lista_entregas_nome_usuario_e_obs(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=10.0)
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "origem": "manual",
+            "data_entrega": "2026-08-05",
+            "fornecedor_id": fornecedor["id"],
+            "observacoes": "Entrega do leite no turno da manhã",
+            "itens": [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+
+    lista = client.get("/entregas", headers=_auth(admin_token)).json()
+    assert len(lista) == 1
+    entrega = lista[0]
+    assert entrega["id_usuario"] == admin_user.id
+    assert entrega["id_usuario_nome"] == admin_user.nome
+    assert entrega["observacoes"] == "Entrega do leite no turno da manhã"
+
+
+# F7 — GET /entregas/{id} resolve o nome real do registrador (obs #3)
+def test_f7_detalhe_entrega_nome_usuario(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Feijão", saldo=10.0)
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    resp = client.post(
+        "/entregas",
+        json={
+            "origem": "manual",
+            "data_entrega": "2026-08-05",
+            "fornecedor_id": fornecedor["id"],
+            "observacoes": "Observação do detalhe",
+            "itens": [{"item_id": item["id"], "quantidade": 3, "acao": "recebido"}],
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+
+    detalhe = client.get(f"/entregas/{resp.json()['id']}", headers=_auth(admin_token)).json()
+    assert detalhe["id_usuario"] == admin_user.id
+    assert detalhe["id_usuario_nome"] == admin_user.nome
+
+
 # --- Fase 8 — Regras por origem no POST /entregas (D-07; E14-E18) ---
 
 # E14 — Entrega manual sem observações → 400

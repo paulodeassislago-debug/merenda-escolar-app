@@ -1137,10 +1137,14 @@ def listar_entregas(
         fornecedor = db.query(models.Fornecedor).filter(
             models.Fornecedor.id == e.fornecedor_id
         ).first() if e.fornecedor_id else None
+        registrador = db.query(models.Usuario).filter(
+            models.Usuario.id == e.id_usuario
+        ).first()
         resultado.append({
             "id": e.id,
             "data_hora": e.data_hora.isoformat(),
             "id_usuario": e.id_usuario,
+            "id_usuario_nome": registrador.nome if registrador else None,
             "origem": e.origem,
             "data_entrega": e.data_entrega.isoformat() if e.data_entrega else None,
             "fornecedor_id": e.fornecedor_id,
@@ -1166,10 +1170,14 @@ def detalhar_entrega(
     fornecedor = db.query(models.Fornecedor).filter(
         models.Fornecedor.id == entrega.fornecedor_id
     ).first() if entrega.fornecedor_id else None
+    registrador = db.query(models.Usuario).filter(
+        models.Usuario.id == entrega.id_usuario
+    ).first()
     return {
         "id": entrega.id,
         "data_hora": entrega.data_hora.isoformat(),
         "id_usuario": entrega.id_usuario,
+        "id_usuario_nome": registrador.nome if registrador else None,
         "origem": entrega.origem,
         "data_entrega": entrega.data_entrega.isoformat() if entrega.data_entrega else None,
         "fornecedor_id": entrega.fornecedor_id,
