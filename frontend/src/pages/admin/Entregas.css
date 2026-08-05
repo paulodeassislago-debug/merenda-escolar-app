@@ -579,3 +579,133 @@ select.form-input {
   color: var(--texto-suave);
   font-size: 0.875rem;
 }
+
+/* =========================================================================
+   Cabeçalho do form — campos novos (origem/data/fornecedor/nota/observações)
+   ========================================================================= */
+
+.entrega-campos-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.entrega-campos-form textarea.form-input {
+  min-height: 72px;
+  resize: vertical;
+}
+
+/* Autocomplete de fornecedor (D-08) */
+.fornecedor-autocomplete {
+  position: relative;
+}
+
+.fornecedor-erro {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.fornecedor-retry {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.25rem;
+  color: var(--verde-escuro);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: var(--fonte-sans);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.fornecedor-retry:focus-visible {
+  outline: 2px solid var(--verde-vivo);
+  outline-offset: 2px;
+  border-radius: var(--raio);
+}
+
+/* Lista de sugestões do autocomplete */
+.sugestoes-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background-color: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra-card);
+}
+
+.sugestoes-rotulo-item {
+  padding: 0.25rem 0.5rem;
+}
+
+.sugestoes-rotulo {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+}
+
+.sugestao-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: var(--raio);
+  font-family: var(--fonte-sans);
+  font-size: 0.875rem;
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sugestao-item:hover,
+.sugestao-item:focus-visible,
+.sugestao-item-ativa {
+  background-color: var(--verde-tint);
+  outline: none;
+}
+
+.sugestao-nome {
+  font-weight: 600;
+}
+
+.sugestao-cnpj {
+  color: var(--texto-suave);
+  font-weight: 400;
+}
+
+.sugestao-motivo {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.sugestao-cadastrar {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--borda);
+  border-radius: 0;
+  color: var(--verde-escuro);
+  font-weight: 600;
+}
+
+.sugestao-cadastrar:hover,
+.sugestao-cadastrar:focus-visible,
+.sugestao-cadastrar.sugestao-item-ativa {
+  border-radius: var(--raio);
+}

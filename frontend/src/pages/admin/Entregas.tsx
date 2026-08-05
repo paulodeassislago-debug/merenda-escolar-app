@@ -444,6 +444,15 @@ export default function Entregas() {
     const linha = linhas[index];
     if (!linha) return;
 
+    // Origem manual (D-07): sem justificativa por item — só 'recebido';
+    // a quantidade é aplicada diretamente, sem modal de auditoria.
+    if (origem === 'manual') {
+      setLinhas((prev) =>
+        prev.map((l, i) => (i === index ? { ...l, quantidade } : l)),
+      );
+      return;
+    }
+
     // Se a linha já está marcada como 'alterado', permite editar livremente
     if (linha.acao === 'alterado') {
       setLinhas((prev) =>
@@ -463,6 +472,13 @@ export default function Entregas() {
   const removerLinha = (index: number) => {
     const linha = linhas[index];
     if (!linha) return;
+
+    // Origem manual (D-07): a linha é removida de fato — o form manual não
+    // oferece 'alterado'/'excluído' nem justificativa por item.
+    if (origem === 'manual') {
+      setLinhas((prev) => prev.filter((_, i) => i !== index));
+      return;
+    }
 
     // Linhas novas (sem itemId e sem descricaoNf da NF) podem ser removidas de verdade
     if (!linha.itemId && !linha.descricaoNf) {
@@ -642,17 +658,20 @@ export default function Entregas() {
       return;
     }
 
-    // Guarda de UI: verificar justificativas pendentes
-    const semJustificativa = linhas.filter(
-      (l) =>
-        (l.acao === 'alterado' || l.acao === 'excluído') &&
-        (!l.justificativa || l.justificativa.trim() === ''),
-    );
-    if (semJustificativa.length > 0) {
-      setErroSubmit(
-        'Itens alterados ou excluídos exigem justificativa. Verifique as linhas marcadas.',
+    // Guarda de UI: verificar justificativas pendentes (somente XML — D-07:
+    // o form manual não oferece alterado/excluído e envia tudo como 'recebido')
+    if (origem === 'xml') {
+      const semJustificativa = linhas.filter(
+        (l) =>
+          (l.acao === 'alterado' || l.acao === 'excluído') &&
+          (!l.justificativa || l.justificativa.trim() === ''),
       );
-      return;
+      if (semJustificativa.length > 0) {
+        setErroSubmit(
+          'Itens alterados ou excluídos exigem justificativa. Verifique as linhas marcadas.',
+        );
+        return;
+      }
     }
 
     setSalvando(true);
@@ -666,10 +685,10 @@ export default function Entregas() {
       itens: linhas.map((l) => ({
         item_id: l.itemId!,
         quantidade: l.quantidade,
-        acao: l.acao,
+        acao: origem === 'manual' ? ('recebido' as const) : l.acao,
         unidade: l.unidade.trim() || undefined,
         fator_conversao: l.fatorConversao ? Number(l.fatorConversao) : undefined,
-        justificativa: l.justificativa?.trim() || null,
+        justificativa: origem === 'manual' ? null : l.justificativa?.trim() || null,
       })),
     };
 
@@ -1194,7 +1213,10 @@ export default function Entregas() {
                           disabled={linha.removida}
                         />
                       </td>
-                      <td>{badgeAcao(linha.acao)}</td>
+                      <td>
+                        {/* D-07: origem manual oferece somente a ação 'recebido' */}
+                        {origem === 'manual' ? badgeAcao('recebido') : badgeAcao(linha.acao)}
+                      </td>
                       <td>
                         {linha.removida ? (
                           <button
