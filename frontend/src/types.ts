@@ -45,7 +45,16 @@ export interface Item {
   saldo_atual: number;
   unidade_interna: string;
   fator_conversao: number;
+  limiar: number;
 }
+
+export interface Fornecedor {
+  id: number;
+  nome: string;
+  cnpj: string | null;
+}
+
+export type OrigemEntrega = 'xml' | 'manual';
 
 export interface Conversao {
   id: number;
@@ -93,6 +102,9 @@ export interface EntregaResumo {
   id: number;
   data_hora: string;
   id_usuario: number;
+  origem: OrigemEntrega;
+  data_entrega: string;
+  fornecedor_nome: string | null;
   qtd_itens: number;
 }
 
@@ -100,6 +112,12 @@ export interface EntregaDetalhe {
   id: number;
   data_hora: string;
   id_usuario: number;
+  origem: OrigemEntrega;
+  data_entrega: string;
+  fornecedor_id: number | null;
+  fornecedor_nome: string | null;
+  nota_numero: string | null;
+  observacoes: string | null;
   itens: ItemEntrega[];
 }
 
@@ -112,12 +130,22 @@ export interface EntregaItemRequest {
   justificativa?: string | null;
 }
 
+export interface EntregaCreatePayload {
+  origem: OrigemEntrega;
+  data_entrega: string;
+  fornecedor_id: number;
+  nota_numero?: string | null;
+  observacoes?: string | null;
+  itens: EntregaItemRequest[];
+}
+
 export interface DashboardItemCritico {
   id: number;
   nome: string;
   saldo_atual: number;
   unidade_oficial: string;
   fator_conversao: number;
+  limiar: number;
 }
 
 export interface DashboardEstoque {
