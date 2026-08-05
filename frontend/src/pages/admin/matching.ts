@@ -4,7 +4,9 @@
 //       + dicionário curto de abreviações + score explicável ("3 de 4 palavras batem").
 // D-22: sugestões assistivas e confirmáveis — este módulo NUNCA vincula, seleciona ou
 //       funde; a associação é sempre decisão explícita da UI/usuário.
-// D-24: persistência de aliases adiada — sem fetch/axios/localStorage neste módulo.
+// D-24: persistência de aliases adiada — módulo sem efeitos de rede nem armazenamento local.
+
+import type { Fornecedor } from '../../types';
 
 /**
  * Normaliza texto para casamento de nomes — extensão determinística de `normalizarTexto`
@@ -110,4 +112,37 @@ export function similaridade(a: string, b: string): ScoreSimilaridade {
   }
 
   return { score, motivo };
+}
+
+export interface SugestaoCandidato<T extends { id: number; nome: string }> {
+  candidato: T;
+  confianca: number;
+  motivo: string;
+}
+
+/** Sugestão especializada para fornecedores (consumida pela 08-05). */
+export type SugestaoFornecedor = SugestaoCandidato<Fornecedor>;
+
+/**
+ * Sugestões assistivas de candidatos para um texto (D-22): calcula `similaridade` para
+ * cada candidato, mantém apenas score > 0, ordena por confiança decrescente (desempate
+ * por nome asc) e corta no limite. Retorna apenas candidatos — nunca vincula, seleciona
+ * ou funde nada: a associação fica sempre com a UI/usuário.
+ */
+export function sugerirCandidatos<T extends { id: number; nome: string }>(
+  texto: string,
+  candidatos: T[],
+  limite = 3,
+): SugestaoCandidato<T>[] {
+  return candidatos
+    .map((candidato) => {
+      const { score, motivo } = similaridade(texto, candidato.nome);
+      return { candidato, confianca: Math.round(score * 100) / 100, motivo };
+    })
+    .filter((s) => s.confianca > 0)
+    .sort(
+      (x, y) =>
+        y.confianca - x.confianca || x.candidato.nome.localeCompare(y.candidato.nome),
+    )
+    .slice(0, limite);
 }
