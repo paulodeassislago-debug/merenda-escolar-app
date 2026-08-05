@@ -29,12 +29,11 @@ O conjunto verificavel de requisitos esta em `.planning/REQUIREMENTS.md`.
 - Sete paginas administrativas implementadas na Fase 5.
 - Unidades livres com conversao interna e tipo `Lanche` unificado implementados na Fase 5.7.
 - Upload XML NF-e, revisão humana e confirmação no fluxo de entregas validados manualmente na Fase 5.
+- Cardapio publico responsivo com quatro slots normalizados, disclosure de ingredientes e estados acessiveis validado na Fase 7 (PUBLIC-02).
+- Checklist F1-F17 e prova controlada conversao → baixa → refeicao → auditoria com falhas atomicas validados na Fase 7 (QUAL-05, QUAL-06).
 
 ### Active
 
-- [ ] Modernizar o painel da cozinheira para consumir planejamento e API reais.
-- [ ] Modernizar o painel de gestao para secretaria, com links e dados reais.
-- [ ] Finalizar cardapio publico, testes manuais e verificacao ponta a ponta.
 - [ ] Depois da Fase 7, executar a Fase 8 de melhorias operacionais documentadas.
 
 ### Out of Scope
@@ -127,4 +126,4 @@ O conjunto verificavel de requisitos esta em `.planning/REQUIREMENTS.md`.
 - `.planning/phases/08-improvements/08-CONTEXT.md` — backlog estruturado das melhorias da Fase 8.
 
 ---
-*Last updated: 2026-08-03 after GSD context consolidation*
+*Last updated: 2026-08-04 after Phase 7 completion*
