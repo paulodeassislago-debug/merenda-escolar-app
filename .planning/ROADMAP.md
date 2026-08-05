@@ -137,12 +137,12 @@ Plans:
   3. Fluxo conversao → baixa → refeicao → auditoria e verificado.
   4. Checklist manual F1-F17 passa.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Entregar o cardápio público responsivo com quatro slots, estados e disclosure acessível
+- [x] 07-01-PLAN.md — Entregar o cardápio público responsivo com quatro slots, estados e disclosure acessível
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Fundacao Frontend | pre-GSD | Complete | 2026-07-31 |
 | 5. Paginas Admin | 7/7 | Complete | 2026-08-03 |
 | 6. Cozinha + Gestao | 2/2 | Complete | 2026-08-04 |
-| 7. Finalizacao | 0/? | Not started | - |
+| 7. Finalizacao | 1/2 | In Progress|  |
 | 8. Improvements | 0/? | Backlog | - |
 
 ---

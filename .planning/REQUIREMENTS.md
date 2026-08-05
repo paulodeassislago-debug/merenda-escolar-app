@@ -65,7 +65,7 @@
 - [ ] **MGMT-01**: Painel da secretaria deve consumir dados reais de estoque, refeicoes, planejamento e entregas. **Phase 6**
 - [ ] **MGMT-02**: Painel da secretaria deve oferecer navegacao para planejamento e entregas. **Phase 6**
 - [x] **PUBLIC-01**: Visitante pode consultar o cardapio planejado do dia sem autenticacao.
-- [ ] **PUBLIC-02**: Cardapio publico deve ser polido e responsivo em desktop, tablet e mobile. **Phase 7**
+- [x] **PUBLIC-02**: Cardapio publico deve ser polido e responsivo em desktop, tablet e mobile. **Phase 7**
 
 ### Quality and Operations
 
@@ -125,12 +125,13 @@ These improvements are intentionally scheduled after Phase 7. They must not chan
 | DASH-01..DASH-02 | Phase 3 and 5 | Complete |
 | MGMT-01..MGMT-02 | Phase 6 | Pending |
 | PUBLIC-01 | Phase 3 and 4 | Complete |
-| PUBLIC-02 | Phase 7 | Pending |
+| PUBLIC-02 | Phase 7 | Complete |
 | QUAL-01..QUAL-04 | Phases 1-5 | Complete |
 | QUAL-05..QUAL-06 | Phase 7 | Pending |
 | IMP-01..IMP-05 | Phase 8 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 52 total
 - Complete: 40
 - Pending: 12
