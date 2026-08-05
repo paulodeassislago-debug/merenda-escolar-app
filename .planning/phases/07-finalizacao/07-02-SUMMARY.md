@@ -126,7 +126,7 @@ Cada task foi commitada atomicamente:
 
 **Commits de suporte e metadata:**
 - `9e19682` (chore) — `.gitignore`: backups `merenda.db.bak-*` ignorados
-- `{metadata}` (docs) — SUMMARY + STATE.md + ROADMAP.md
+- `af90089` (docs) — SUMMARY + STATE.md + ROADMAP.md + REQUIREMENTS.md
 
 ## Files Created/Modified
 
@@ -166,6 +166,7 @@ None - no external service configuration required.
 - ✅ Commit `9372351` (Task 1) presente no histórico
 - ✅ Commit `673fbe8` (Task 2) presente no histórico
 - ✅ Commit `9e19682` (.gitignore) presente no histórico
+- ✅ Commit `af90089` (metadata) presente no histórico
 - ✅ Gate combinado verde (build 94 módulos + lint exit 0 + 103 passed) registrado
 
 ---
