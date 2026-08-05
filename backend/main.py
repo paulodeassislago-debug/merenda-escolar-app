@@ -670,6 +670,170 @@ def _serializar_planejamento(db: Session, entrada: models.Planejamento) -> dict:
     }
 
 
+# --- PROJEÇÃO CUMULATIVA DE ESTOQUE (D-17/D-18/D-20) ---
+
+def _consumo_slot(
+    db: Session,
+    slot_entrada: models.Planejamento,
+    total_alunos: int | None,
+) -> tuple[dict[int, float], set[int]] | None:
+    """Consumo por item (unidade oficial kg/L) do slot planejado: ∑(receita × alunos).
+
+    `total_alunos` vem de `_total_por_slot`; None (config ausente) → retorna None,
+    sem levantar, para a projeção responder `configurado: false`.
+    Itens sem conversão cadastrada são marcados não avaliáveis (D-17) — não lança 400.
+    """
+    if total_alunos is None:
+        return None
+    receitas = db.query(models.Receita).filter(
+        models.Receita.cardapio_item_id == slot_entrada.cardapio_item_id
+    ).all()
+    consumo: dict[int, float] = {}
+    nao_avaliaveis: set[int] = set()
+    for r in receitas:
+        item = db.query(models.Item).filter(models.Item.id == r.item_id).first()
+        if not item:
+            continue
+        try:
+            qtd_oficial = _converter_para_unidade_oficial(
+                db, item, r.quantidade * total_alunos, r.medida_caseira
+            )
+        except HTTPException:
+            nao_avaliaveis.add(r.item_id)
+            continue
+        consumo[r.item_id] = consumo.get(r.item_id, 0.0) + qtd_oficial
+    return consumo, nao_avaliaveis
+
+
+def _simular_semana(
+    db: Session,
+    segunda: date,
+    ate_dia: int | None = None,
+    referencia: date | None = None,
+) -> dict:
+    """Simulação cumulativa da semana (D-17): segunda (0) → domingo (6), slots na
+    ordem de `SLOTS_PLANEJAMENTO`. `ate_dia` limita a simulação (avisos do POST).
+
+    Config de alunos ausente → `configurado: false` com tudo zerado (não levanta).
+    """
+    try:
+        _valores_alunos_por_periodo(db)
+    except HTTPException:
+        return {
+            "configurado": False,
+            "dias": [],
+            "itens": [],
+            "resumo": {"itens_com_ruptura": 0, "itens_nao_avaliaveis": 0},
+        }
+
+    data_referencia = referencia or (segunda + timedelta(days=ate_dia if ate_dia is not None else 6))
+    ativos = _planejamento_ativo(db, data_referencia)
+    itens_catalogo = db.query(models.Item).order_by(models.Item.id).all()
+    saldo_corrente = {i.id: i.saldo_atual for i in itens_catalogo}
+    consumo_semana: dict[int, float] = {i.id: 0.0 for i in itens_catalogo}
+    primeiro_dia_ruptura: dict[int, int | None] = {i.id: None for i in itens_catalogo}
+    nao_avaliaveis: set[int] = set()
+    dias: list[dict] = []
+
+    for dia in range(ate_dia + 1 if ate_dia is not None else 7):
+        consumo_dia: dict[int, float] = {}
+        rupturas_dia: list[dict] = []
+        for slot in SLOTS_PLANEJAMENTO:
+            entrada = ativos.get((dia, slot))
+            if not entrada:
+                continue
+            total_alunos = _total_por_slot(db, slot)
+            resultado = _consumo_slot(db, entrada, total_alunos)
+            if resultado is None:
+                continue
+            consumo, nao_av = resultado
+            nao_avaliaveis.update(nao_av)
+            for item_id, qtd in consumo.items():
+                consumo_dia[item_id] = consumo_dia.get(item_id, 0.0) + qtd
+                consumo_semana[item_id] += qtd
+                saldo_corrente[item_id] -= qtd
+                if saldo_corrente[item_id] < 0 and primeiro_dia_ruptura[item_id] is None:
+                    primeiro_dia_ruptura[item_id] = dia
+        for item_id in sorted(consumo_dia):
+            item = next(i for i in itens_catalogo if i.id == item_id)
+            if saldo_corrente[item_id] < 0:
+                rupturas_dia.append({
+                    "item_id": item_id,
+                    "nome": item.nome,
+                    "faltando": -saldo_corrente[item_id],
+                    "unidade_oficial": item.unidade_oficial,
+                })
+        if consumo_dia:
+            dias.append({
+                "dia": (segunda + timedelta(days=dia)).isoformat(),
+                "dia_semana": dia,
+                "consumo": {str(k): v for k, v in consumo_dia.items()},
+                "rupturas": rupturas_dia,
+            })
+
+    itens = []
+    for i in itens_catalogo:
+        if i.id in nao_avaliaveis:
+            itens.append({
+                "item_id": i.id,
+                "nome": i.nome,
+                "unidade_oficial": i.unidade_oficial,
+                "saldo_atual": i.saldo_atual,
+                "consumo_semana": None,
+                "saldo_projetado": None,
+                "primeiro_dia_ruptura": None,
+                "avaliavel": False,
+            })
+        else:
+            itens.append({
+                "item_id": i.id,
+                "nome": i.nome,
+                "unidade_oficial": i.unidade_oficial,
+                "saldo_atual": i.saldo_atual,
+                "consumo_semana": consumo_semana[i.id],
+                "saldo_projetado": saldo_corrente[i.id],
+                "primeiro_dia_ruptura": primeiro_dia_ruptura[i.id],
+                "avaliavel": True,
+            })
+
+    itens_com_ruptura = sum(
+        1 for i in itens_catalogo
+        if i.id not in nao_avaliaveis and saldo_corrente[i.id] < 0
+    )
+    return {
+        "configurado": True,
+        "dias": dias,
+        "itens": itens,
+        "resumo": {
+            "itens_com_ruptura": itens_com_ruptura,
+            "itens_nao_avaliaveis": len(nao_avaliaveis),
+        },
+    }
+
+
+def _calcular_avisos(db: Session, entrada: models.Planejamento) -> list[dict]:
+    """Avisos não-bloqueantes da refeição salva (D-18): itens com saldo projetado
+    negativo, simulando o consumo acumulado de segunda até o dia_semana salvo.
+    Sem config de alunos → [] (nunca bloqueia)."""
+    segunda = entrada.data_inicio_vigencia - timedelta(days=entrada.data_inicio_vigencia.weekday())
+    simulacao = _simular_semana(
+        db, segunda,
+        ate_dia=entrada.dia_semana,
+        referencia=entrada.data_inicio_vigencia,
+    )
+    if not simulacao["configurado"]:
+        return []
+    avisos = []
+    for info in simulacao["itens"]:
+        if info["avaliavel"] and info["saldo_projetado"] is not None and info["saldo_projetado"] < 0:
+            avisos.append({
+                "item_id": info["item_id"],
+                "nome": info["nome"],
+                "faltando": -info["saldo_projetado"],
+            })
+    return avisos
+
+
 @app.get("/planejamento")
 def consultar_planejamento(
     data: date | None = None,
@@ -685,13 +849,35 @@ def consultar_planejamento(
     ]
 
 
+@app.get("/planejamento/projecao")
+def projecao_planejamento(
+    data: date | None = None,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    """Projeção cumulativa de estoque da semana (D-17/D-20 — cozinheira não vê).
+
+    Simula dia a dia (segunda→domingo, slots em ordem) o saldo corrente por item.
+    Contrato consumido pela 08-09: configurado/dias/itens/resumo.
+    """
+    data_ref = data or date.today()
+    segunda = data_ref - timedelta(days=data_ref.weekday())
+    simulacao = _simular_semana(db, segunda, referencia=data_ref)
+    simulacao["data_ref"] = data_ref.isoformat()
+    return simulacao
+
+
 @app.post("/planejamento")
 def definir_planejamento(
     dados: schemas.PlanejamentoCreate,
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
 ):
-    """Define (ou altera) o prato de um slot dia_semana × tipo_refeicao a partir de uma vigência."""
+    """Define (ou altera) o prato de um slot dia_semana × tipo_refeicao a partir de uma vigência.
+
+    Não bloqueia por falta de estoque (D-18): a resposta é aditiva e traz `avisos`
+    com os itens que faltarão segundo a simulação cumulativa até o dia salvo.
+    """
     if dados.dia_semana < 0 or dados.dia_semana > 6:
         raise HTTPException(status_code=400, detail="dia_semana deve estar entre 0 (segunda) e 6 (domingo)")
     if dados.tipo_refeicao not in SLOTS_PLANEJAMENTO:
@@ -717,18 +903,20 @@ def definir_planejamento(
         existente.cardapio_item_id = dados.cardapio_item_id
         db.commit()
         db.refresh(existente)
-        return _serializar_planejamento(db, existente)
+        entrada = existente
+    else:
+        novo = models.Planejamento(
+            cardapio_item_id=dados.cardapio_item_id,
+            tipo_refeicao=dados.tipo_refeicao,
+            dia_semana=dados.dia_semana,
+            data_inicio_vigencia=dados.data_inicio_vigencia,
+        )
+        db.add(novo)
+        db.commit()
+        db.refresh(novo)
+        entrada = novo
 
-    novo = models.Planejamento(
-        cardapio_item_id=dados.cardapio_item_id,
-        tipo_refeicao=dados.tipo_refeicao,
-        dia_semana=dados.dia_semana,
-        data_inicio_vigencia=dados.data_inicio_vigencia,
-    )
-    db.add(novo)
-    db.commit()
-    db.refresh(novo)
-    return _serializar_planejamento(db, novo)
+    return {**_serializar_planejamento(db, entrada), "avisos": _calcular_avisos(db, entrada)}
 
 
 @app.delete("/planejamento/{planejamento_id}")

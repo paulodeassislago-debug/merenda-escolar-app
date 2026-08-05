@@ -218,3 +218,178 @@ def test_planejamento_slot_invalido(client, admin_user, admin_token):
         headers=_auth(admin_token),
     )
     assert resp.status_code == 400
+
+
+# =========================================================================
+# 08-07 — Projeção cumulativa (D-17/D-18/D-20) e avisos não-bloqueantes
+# =========================================================================
+
+def _criar_item(client, admin_token, nome, saldo=10.0) -> dict:
+    return client.post(
+        "/itens",
+        json={"nome": nome, "unidade_oficial": "KG", "saldo_atual": saldo},
+        headers=_auth(admin_token),
+    ).json()
+
+
+def _configurar_alunos(client, admin_token) -> None:
+    """Config padrão da suíte: 100/80/40 → Almoço = 180 (manha + tarde)."""
+    resp = client.put(
+        "/alunos-por-periodo",
+        json={"manha": 100, "tarde": 80, "noite": 40},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+
+
+def _planejar_almoco_semana(client, admin_token, prato, dias, vigencia="2026-07-27"):
+    for dia in dias:
+        resp = client.post(
+            "/planejamento",
+            json={
+                "cardapio_item_id": prato["id"],
+                "tipo_refeicao": "Almoço",
+                "dia_semana": dia,
+                "data_inicio_vigencia": vigencia,
+            },
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+
+
+# P1 — Sem config de alunos → 200 com configurado:false e tudo zerado (D-19)
+def test_p1_projecao_config_ausente(client, admin_user, admin_token):
+    resp = client.get("/planejamento/projecao?data=2026-07-31", headers=_auth(admin_token))
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["configurado"] is False
+    assert dados["dias"] == []
+    assert dados["itens"] == []
+    assert dados["resumo"] == {"itens_com_ruptura": 0, "itens_nao_avaliaveis": 0}
+
+
+# P2 — Sem ruptura: consumo derivado do slot (180 alunos × 1 kg por Almoço)
+def test_p2_projecao_sem_ruptura(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=1000.0)
+    _configurar_alunos(client, admin_token)
+    prato = _criar_prato(client, admin_token)
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 1, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    # Almoço de segunda a sexta (dias 0..4)
+    _planejar_almoco_semana(client, admin_token, prato, list(range(5)))
+
+    resp = client.get("/planejamento/projecao?data=2026-07-31", headers=_auth(admin_token))
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["configurado"] is True
+    item_proj = next(i for i in dados["itens"] if i["item_id"] == item["id"])
+    # 180 alunos × 1 kg × 5 dias = 900 kg consumidos; saldo 1000 → projetado 100
+    assert item_proj["consumo_semana"] == 900
+    assert item_proj["saldo_projetado"] == 100
+    assert item_proj["primeiro_dia_ruptura"] is None
+    assert item_proj["avaliavel"] is True
+    assert dados["resumo"]["itens_com_ruptura"] == 0
+
+
+# P3 — Ruptura no primeiro dia: consumo diário (360 kg) > saldo (100 kg)
+def test_p3_projecao_ruptura_primeiro_dia(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=100.0)
+    _configurar_alunos(client, admin_token)
+    prato = _criar_prato(client, admin_token)
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    _planejar_almoco_semana(client, admin_token, prato, list(range(7)))
+
+    resp = client.get("/planejamento/projecao?data=2026-07-31", headers=_auth(admin_token))
+    assert resp.status_code == 200
+    dados = resp.json()
+    item_proj = next(i for i in dados["itens"] if i["item_id"] == item["id"])
+    assert item_proj["primeiro_dia_ruptura"] == 0
+    # 2 kg × 180 alunos = 360 kg no dia 0 → saldo -260 → faltando 260
+    assert dados["dias"][0]["dia_semana"] == 0
+    ruptura = dados["dias"][0]["rupturas"][0]
+    assert ruptura["item_id"] == item["id"]
+    assert ruptura["nome"] == "Arroz"
+    assert ruptura["faltando"] == 260
+    assert ruptura["unidade_oficial"] == "KG"
+    assert dados["resumo"]["itens_com_ruptura"] == 1
+
+
+# P4 — Item sem conversão → não avaliável (avaliavel:false), resposta 200 (D-17)
+def test_p4_projecao_sem_conversao_nao_avaliavel(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=100.0)
+    _configurar_alunos(client, admin_token)
+    prato = _criar_prato(client, admin_token)
+    # Medida caseira "colher" SEM conversão cadastrada
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 1, "medida_caseira": "colher"},
+        headers=_auth(admin_token),
+    )
+    _planejar_almoco_semana(client, admin_token, prato, [0])
+
+    resp = client.get("/planejamento/projecao?data=2026-07-31", headers=_auth(admin_token))
+    assert resp.status_code == 200
+    dados = resp.json()
+    item_proj = next(i for i in dados["itens"] if i["item_id"] == item["id"])
+    assert item_proj["avaliavel"] is False
+    assert item_proj["consumo_semana"] is None
+    assert item_proj["saldo_projetado"] is None
+    assert item_proj["primeiro_dia_ruptura"] is None
+    assert dados["resumo"]["itens_nao_avaliaveis"] == 1
+    assert dados["resumo"]["itens_com_ruptura"] == 0
+
+
+# P5 — Cozinheira não vê a projeção (D-20) → 403
+def test_p5_projecao_cozinheira_403(client, admin_user, admin_token, cozinheira_user, cozinheira_token):
+    resp = client.get("/planejamento/projecao?data=2026-07-31", headers=_auth(cozinheira_token))
+    assert resp.status_code == 403
+
+
+# P6 — POST /planejamento não bloqueia por estoque: avisos aditivos (D-18)
+def test_p6_post_avisos_nao_bloqueia(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=100.0)
+    prato = _criar_prato(client, admin_token)
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+
+    # Sem config de alunos → 200 com avisos vazios (não bloqueia — D-18)
+    resp = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Almoço",
+            "dia_semana": 0,
+            "data_inicio_vigencia": "2026-07-27",
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["avisos"] == []
+
+    # Com config → 200 e avisos apontando a ruptura projetada (360 kg vs saldo 100)
+    _configurar_alunos(client, admin_token)
+    resp = client.post(
+        "/planejamento",
+        json={
+            "cardapio_item_id": prato["id"],
+            "tipo_refeicao": "Almoço",
+            "dia_semana": 0,
+            "data_inicio_vigencia": "2026-07-27",
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["avisos"] == [
+        {"item_id": item["id"], "nome": "Arroz", "faltando": 260}
+    ]

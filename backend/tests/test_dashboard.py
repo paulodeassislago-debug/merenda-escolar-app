@@ -62,12 +62,19 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
         headers=_auth(admin_token),
     )
 
-    # Refeição de hoje (almoço, 200 alunos, 2 kg de arroz)
+    # Config de alunos por período (08-07): Almoço = manha + tarde = 180
+    resp = client.put(
+        "/alunos-por-periodo",
+        json={"manha": 100, "tarde": 80, "noite": 40},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+
+    # Refeição de hoje (almoço, 2 kg de arroz; alunos derivados do slot)
     client.post(
         "/refeicoes",
         json={
-            "tipo_refeicao": "Almoço",
-            "qtd_alunos": 200,
+            "slot": "Almoço",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -88,11 +95,11 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
     # Refeições hoje: almoço confirmado, demais pendentes
     almoco = next(r for r in dados["refeicoes_hoje"] if r["tipo_refeicao"] == "Almoço")
     assert almoco["status"] == "confirmado"
-    assert almoco["alunos"] == 200
+    assert almoco["alunos"] == 180
 
-    # Alunos hoje
-    assert dados["alunos_hoje"]["total"] == 200
-    assert dados["alunos_hoje"]["por_tipo"] == {"Almoço": 200}
+    # Alunos hoje (derivados da config: manha + tarde = 180)
+    assert dados["alunos_hoje"]["total"] == 180
+    assert dados["alunos_hoje"]["por_tipo"] == {"Almoço": 180}
 
 
 # D3 — Sem token → 401
