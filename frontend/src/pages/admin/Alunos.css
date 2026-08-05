@@ -1,0 +1,159 @@
+/* src/pages/admin/Alunos.css — configuração de alunos por período (tokens do PROJECT.md) */
+
+.pagina-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.pagina-header h1 {
+  font-family: var(--fonte-sans);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--verde-escuro);
+  margin: 0;
+}
+
+.card {
+  background-color: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra-card);
+  padding: 1.5rem;
+  max-width: 720px;
+}
+
+.alunos-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.375rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  font-size: 1rem;
+  font-family: var(--fonte-sans);
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--verde-vivo);
+  box-shadow: 0 0 0 2px rgba(72, 187, 44, 0.25);
+}
+
+.campo-ajuda {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  margin: 0.75rem 0 0;
+}
+
+.alunos-atualizado {
+  margin-top: 0.375rem;
+}
+
+.alunos-aviso-vazio {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--borda);
+  border-radius: var(--raio);
+  background: var(--fundo);
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.aviso-sucesso {
+  margin: 0 0 1rem;
+  padding: 0.625rem 0.75rem;
+  background-color: var(--verde-tint);
+  color: var(--verde-escuro);
+  font-size: 0.875rem;
+  border-radius: var(--raio);
+}
+
+.aviso {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+.aviso-erro {
+  color: var(--erro);
+}
+
+.alerta-erro {
+  margin: 1rem 0 0;
+  padding: 0.625rem 0.75rem;
+  background-color: var(--erro-fundo);
+  color: var(--erro);
+  font-size: 0.875rem;
+  border-radius: var(--raio);
+}
+
+.alunos-acoes {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.btn-primario {
+  background-color: var(--verde-escuro);
+  color: var(--branco);
+  border: 1px solid var(--verde-escuro);
+  border-radius: var(--raio);
+  padding: 0.75rem 1.25rem;
+  font-family: var(--fonte-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primario:hover:not(:disabled) {
+  background-color: var(--verde-vivo);
+  border-color: var(--verde-vivo);
+}
+
+.btn-primario:focus-visible {
+  outline: 3px solid var(--verde-vivo);
+  outline-offset: 2px;
+}
+
+.btn-primario:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .alunos-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alunos-acoes {
+    flex-direction: column;
+  }
+
+  .btn-primario {
+    width: 100%;
+  }
+}

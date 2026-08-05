@@ -48,6 +48,14 @@ export interface Item {
   limiar: number;
 }
 
+export interface AlunosPorPeriodo {
+  manha: number;
+  tarde: number;
+  noite: number;
+  updated_at: string | null;
+  updated_by: number | null;
+}
+
 export interface Fornecedor {
   id: number;
   nome: string;

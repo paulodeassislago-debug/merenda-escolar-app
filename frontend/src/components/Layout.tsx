@@ -20,6 +20,7 @@ const NAV_POR_PERFIL: Record<Perfil, NavItem[]> = {
     { para: '/admin', rotulo: 'Dashboard', end: true },
     { para: '/admin/usuarios', rotulo: 'Usuários' },
     { para: '/admin/itens', rotulo: 'Itens / Estoque' },
+    { para: '/admin/alunos', rotulo: 'Alunos' },
     { para: '/admin/cardapio', rotulo: 'Cardápio' },
     { para: '/admin/planejamento', rotulo: 'Planejamento' },
     { para: '/admin/entregas', rotulo: 'Entregas' },
