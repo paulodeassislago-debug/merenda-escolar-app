@@ -165,7 +165,28 @@ Plans:
   6. O planejamento avisa (sem bloquear) os itens que faltarão com projeção cumulativa da semana; o lançamento continua bloqueando.
   7. Os fluxos existentes de entrega, auditoria, conversão e baixa permanecem íntegros (regressões manuais e automatizadas).
 
-**Plans**: TBD — contexto capturado em 2026-08-05; aguardando planejamento.
+**Plans**: 9 planos (contexto capturado em 2026-08-05; planejamento concluído em 2026-08-05)
+
+**Wave 1** *(independente — paralelo)*
+- [ ] 08-01-PLAN.md — Fundação backend: models, migração SQLite, schemas, fornecedores, contratos TS
+- [ ] 08-04-PLAN.md — Motor de matching determinístico (matching.ts)
+
+**Wave 2** *(bloqueado pela Wave 1 — main.py)*
+- [ ] 08-02-PLAN.md — Limiar individual: backend (validação 400, dashboard) + Itens.tsx + DashboardGestao
+
+**Wave 3** *(bloqueado pela Wave 2 — main.py)*
+- [ ] 08-03-PLAN.md — Entregas backend: regras por origem, fornecedores, POST /itens/inline
+
+**Wave 4** *(bloqueado pelas Waves 1/3)*
+- [ ] 08-05-PLAN.md — Entregas frontend: origem/data/fornecedor (autocomplete+inline), pré-preenchimento XML
+- [ ] 08-07-PLAN.md — Backend alunos por período + lançamento por slot + projeção cumulativa
+
+**Wave 5** *(bloqueado pelas Waves 4)*
+- [ ] 08-06-PLAN.md — Cadastro inline de item + sugestões de linha XML
+- [ ] 08-08-PLAN.md — Página admin Alunos + PainelCozinha sem digitação de alunos
+- [ ] 08-09-PLAN.md — Projeção na UI: badge, painel colapsável e banner
+
+**Cross-cutting constraints:** auditoria por origem em entregas (08-03/08-05); cozinheira não digita alunos — total derivado por slot (08-07/08-08); configuração de alunos ausente é estado explícito, não erro (08-08/08-09); planejamento não bloqueia por estoque — lançamento continua bloqueando (08-07/08-09).
 **Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/phases/08-improvements/08-CONTEXT.md`, `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/TESTING.md`
 
 ## Progress
