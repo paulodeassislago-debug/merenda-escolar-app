@@ -1224,6 +1224,11 @@ export default function Entregas() {
                 {linhas.map((linha, index) => {
                   const naoReconhecido =
                     linha.descricaoNf && linha.itemId === null;
+                  // D-22: sugestões assistivas derivadas (descricaoNf × catálogo) —
+                  // recompute a cada troca de linha/catálogo; nenhum efeito colateral.
+                  const sugestoesLinha = naoReconhecido && !linha.removida
+                    ? sugerirCandidatos(linha.descricaoNf ?? '', itens, 3)
+                    : [];
                   const itemDaLinha = linha.itemId === null
                     ? null
                     : itens.find((item) => item.id === linha.itemId) ?? null;
@@ -1280,6 +1285,34 @@ export default function Entregas() {
                               </>
                             )}
                           </span>
+                        )}
+                        {sugestoesLinha.length > 0 && (
+                          <div className="sugestoes-linha">
+                            <span className="sugestoes-rotulo">Sugestões</span>
+                            <ul className="sugestoes-linha-lista">
+                              {sugestoesLinha.map((sugestao) => (
+                                <li key={sugestao.candidato.id}>
+                                  <button
+                                    type="button"
+                                    className="sugestao-item"
+                                    onClick={() =>
+                                      atualizarItemLinha(
+                                        index,
+                                        sugestao.candidato.id,
+                                      )
+                                    }
+                                  >
+                                    <span className="sugestao-nome">
+                                      {sugestao.candidato.nome}
+                                    </span>
+                                    <span className="sugestao-motivo">
+                                      {sugestao.motivo}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                         {linha.descricaoNf && linha.itemId !== null && (
                           <span

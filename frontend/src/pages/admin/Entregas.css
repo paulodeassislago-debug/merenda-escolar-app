@@ -737,3 +737,29 @@ select.form-input {
 .radio-label input[type="radio"] {
   accent-color: var(--verde-escuro);
 }
+
+/* =========================================================================
+   Sugestões por linha XML sem correspondência (D-22)
+   ========================================================================= */
+
+.sugestoes-linha {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.sugestoes-linha .sugestoes-rotulo {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.sugestoes-linha-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
