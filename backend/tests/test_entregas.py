@@ -1,6 +1,8 @@
 # Fase 3.2 — Entregas (E1–E5 de .planning/codebase/TESTING.md; somente admin+secretaria)
 # Fase 8 — payloads com origem/data_entrega/fornecedor_id (D-05) e testes F1-F5 de fornecedores.
 
+import models
+
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
@@ -208,8 +210,9 @@ def test_e8_xml_acao_sem_justificativa(client, admin_user, admin_token):
     assert _saldo(client, admin_token, item["id"]) == 10.0
 
 
-# E9 — GET /entregas?data= filtra pelo dia
+# E9 — GET /entregas?data= filtra pela data_entrega (WR-03), não pela data de registro
 def test_e9_filtro_por_data(client, admin_user, admin_token):
+    from datetime import date
     item = _criar_item(client, admin_token, "Arroz")
     fornecedor = _criar_fornecedor(client, admin_token)
     client.post(
@@ -217,16 +220,53 @@ def test_e9_filtro_por_data(client, admin_user, admin_token):
         json=_payload_entrega(
             [{"item_id": item["id"], "quantidade": 5, "acao": "recebido"}],
             fornecedor_id=fornecedor["id"],
+            # data da entrega ≠ data de registro (hoje): o filtro usa data_entrega
+            data_entrega="2026-07-01",
         ),
         headers=_auth(admin_token),
     )
-    # Data de hoje → inclui
-    from datetime import date
+    # Data da entrega → inclui
+    lista = client.get("/entregas?data=2026-07-01", headers=_auth(admin_token)).json()
+    assert len(lista) == 1
+    # Registrada hoje mas entregue em outra data → NÃO aparece na data de hoje
     hoje = date.today().isoformat()
     lista = client.get(f"/entregas?data={hoje}", headers=_auth(admin_token)).json()
-    assert len(lista) == 1
+    assert lista == []
     # Data passada → vazia
     lista = client.get("/entregas?data=2020-01-01", headers=_auth(admin_token)).json()
+    assert lista == []
+
+
+# E9b — WR-03: entrega legada (data_entrega nula, D-10) cai no fallback de data_hora
+def test_e9b_filtro_por_data_legada_fallback_data_hora(client, db, admin_user, admin_token):
+    from datetime import datetime
+    item = _criar_item(client, admin_token, "Arroz")
+    fornecedor = _criar_fornecedor(client, admin_token)
+
+    # Linha legada: sem data_entrega (entrega anterior à Fase 8)
+    entrega = models.Entrega(
+        id_usuario=admin_user.id,
+        origem="manual",
+        data_entrega=None,
+        fornecedor_id=fornecedor["id"],
+        data_hora=datetime(2026, 6, 15, 9, 30),
+    )
+    db.add(entrega)
+    db.flush()
+    db.add(models.ItemEntrega(
+        entrega_id=entrega.id,
+        item_id=item["id"],
+        quantidade=5,
+        unidade="KG",
+        fator_conversao=1.0,
+        acao="recebido",
+    ))
+    db.commit()
+
+    # Sem data_entrega → filtro cai para a data de registro (data_hora)
+    lista = client.get("/entregas?data=2026-06-15", headers=_auth(admin_token)).json()
+    assert len(lista) == 1
+    lista = client.get("/entregas?data=2026-06-16", headers=_auth(admin_token)).json()
     assert lista == []
 
 

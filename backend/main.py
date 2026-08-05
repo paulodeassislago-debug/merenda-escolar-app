@@ -1125,7 +1125,12 @@ def listar_entregas(
 ):
     query = db.query(models.Entrega)
     if data:
-        query = query.filter(func.date(models.Entrega.data_hora) == data.isoformat())
+        # WR-03: filtra pela data de ENTREGA (D-05/D-09 — a data que a secretaria/gestão
+        # enxerga), com fallback para a data de registro em entregas legadas sem data_entrega
+        # (D-10). func.date() normaliza data_hora (datetime) e data_entrega (date) para o dia.
+        query = query.filter(
+            func.date(func.coalesce(models.Entrega.data_entrega, models.Entrega.data_hora)) == data.isoformat()
+        )
     entregas = query.order_by(models.Entrega.id.desc()).all()
     resultado = []
     for e in entregas:
