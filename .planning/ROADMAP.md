@@ -12,7 +12,7 @@ Construir e finalizar o sistema web de gestao da cozinha escolar em incrementos 
 - [x] **Phase 4: Fundacao Frontend** - Auth JWT real, cliente API, rotas protegidas e layout.
 - [x] **Phase 5: Paginas Admin (Frontend)** - Sete paginas administrativas, entregas XML e portoes de saida.
 - [x] **Phase 6: Cozinha + Gestao (Frontend)** - Painel da cozinheira e painel da secretaria com dados reais; implementação, segurança e UAT concluídos.
-- [ ] **Phase 7: Finalizacao** - Cardapio publico, testes manuais completos e verificacao ponta a ponta.
+- [x] **Phase 7: Finalizacao** - Cardapio publico, testes manuais completos e verificacao ponta a ponta. (completed 2026-08-04)
 - [ ] **Phase 8: Improvements** - Melhorias de limiar por item, cadastro inline de itens XML e sugestoes inteligentes de correspondencia.
 
 ## Phase Details
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Fundacao Frontend | pre-GSD | Complete | 2026-07-31 |
 | 5. Paginas Admin | 7/7 | Complete | 2026-08-03 |
 | 6. Cozinha + Gestao | 2/2 | Complete | 2026-08-04 |
-| 7. Finalizacao | 2/2 | In Progress|  |
+| 7. Finalizacao | 2/2 | Complete    | 2026-08-04 |
 | 8. Improvements | 0/? | Backlog | - |
 
 ---
