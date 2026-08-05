@@ -3,7 +3,7 @@
 // D-10: alterar/excluir item EXIGE justificativa (exigência de prestação de contas PNAE).
 // D-11: parse no frontend com fast-xml-parser; mesmo fluxo da manual após parse.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type {
   AcaoEntrega,
@@ -11,10 +11,12 @@ import type {
   EntregaResumo,
   EntregaDetalhe,
   EntregaCreatePayload,
+  Fornecedor,
   Item,
   OrigemEntrega,
 } from '../../types';
 import { UNIDADES_SUGERIDAS } from './constants';
+import { sugerirCandidatos } from './matching';
 import { parseNfe } from './nfe';
 import './Entregas.css';
 
@@ -38,6 +40,20 @@ function dataHojeLocal(): string {
   return `${agora.getFullYear()}-${mes}-${dia}`;
 }
 
+/**
+ * Pré-seleção XML (D-09/D-22): melhor sugestão para o emitente da NF com
+ * confiança alta (>= 0.6). Retorna o candidato (nunca vincula silenciosamente) —
+ * a UI mantém o campo preenchido e editável/confirmável.
+ */
+function preSelecionarEmitente(
+  lista: Fornecedor[],
+  emitenteNf: string | null,
+): Fornecedor | null {
+  if (!emitenteNf || lista.length === 0) return null;
+  const melhor = sugerirCandidatos(emitenteNf, lista, 1)[0];
+  return melhor && melhor.confianca >= 0.6 ? melhor.candidato : null;
+}
+
 export default function Entregas() {
   // Listagem
   const [entregas, setEntregas] = useState<EntregaResumo[]>([]);
@@ -57,6 +73,23 @@ export default function Entregas() {
   const [fornecedorId, setFornecedorId] = useState<number | null>(null);
   const [notaNumero, setNotaNumero] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
+
+  // Fornecedor — autocomplete com sugestões + cadastro inline (D-08)
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [erroFornecedores, setErroFornecedores] = useState<string | null>(null);
+  const [textoFornecedor, setTextoFornecedor] = useState('');
+  const [sugestoesAbertas, setSugestoesAbertas] = useState(false);
+  const [indiceSugestao, setIndiceSugestao] = useState(-1);
+  const buscaFornecedorRef = useRef<HTMLInputElement>(null);
+  const fornecedorTocadoRef = useRef(false);
+
+  // Modal inline de fornecedor (D-12 — não reseta o rascunho)
+  const [modalFornecedorAberto, setModalFornecedorAberto] = useState(false);
+  const [nomeNovoFornecedor, setNomeNovoFornecedor] = useState('');
+  const [cnpjNovoFornecedor, setCnpjNovoFornecedor] = useState('');
+  const [salvandoFornecedor, setSalvandoFornecedor] = useState(false);
+  const [erroNovoFornecedor, setErroNovoFornecedor] = useState<string | null>(null);
+  const modalFornecedorRef = useRef<HTMLDivElement>(null);
 
   // Justificativa
   const [justificativaPendente, setJustificativaPendente] = useState<{
@@ -101,10 +134,48 @@ export default function Entregas() {
         if (!cancelled) setCarregando(false);
       });
 
+    // Fornecedores em fetch separado: falha aqui não derruba a página (D-08)
+    const carregarFornecedores = async () => {
+      try {
+        const dados = await fetchJson<Fornecedor[]>('/fornecedores');
+        if (!cancelled) {
+          setFornecedores(dados);
+          setErroFornecedores(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setErroFornecedores(
+            'Não foi possível carregar os fornecedores. Tente novamente.',
+          );
+        }
+      }
+    };
+    carregarFornecedores();
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const recarregarFornecedores = async () => {
+    setErroFornecedores(null);
+    try {
+      const dados = await fetchJson<Fornecedor[]>('/fornecedores');
+      setFornecedores(dados);
+      // Pré-seleção XML após a carga (D-09/D-22): nunca sobrescreve escolha manual.
+      if (fornecedorId === null && !fornecedorTocadoRef.current) {
+        const preSelecionado = preSelecionarEmitente(dados, emitente);
+        if (preSelecionado) {
+          setFornecedorId(preSelecionado.id);
+          setTextoFornecedor(preSelecionado.nome);
+        }
+      }
+    } catch {
+      setErroFornecedores(
+        'Não foi possível carregar os fornecedores. Tente novamente.',
+      );
+    }
+  };
 
   const recarregar = async () => {
     setCarregando(true);
@@ -124,6 +195,129 @@ export default function Entregas() {
       );
     } finally {
       setCarregando(false);
+    }
+  };
+
+  // --- Fornecedor — autocomplete com sugestões (D-08) ---
+
+  const sugestoesFornecedor = textoFornecedor.trim().length >= 1
+    ? sugerirCandidatos(textoFornecedor, fornecedores, 3)
+    : [];
+
+  const selecionarFornecedor = (fornecedor: Fornecedor) => {
+    setFornecedorId(fornecedor.id);
+    setTextoFornecedor(fornecedor.nome);
+    setSugestoesAbertas(false);
+    setIndiceSugestao(-1);
+  };
+
+  const aoDigitarFornecedor = (valor: string) => {
+    setTextoFornecedor(valor);
+    setFornecedorId(null);
+    fornecedorTocadoRef.current = true;
+    setIndiceSugestao(-1);
+    setSugestoesAbertas(true);
+  };
+
+  const handleFornecedorKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setSugestoesAbertas(false);
+      setIndiceSugestao(-1);
+      return;
+    }
+    if (!sugestoesAbertas) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSugestoesAbertas(true);
+        setIndiceSugestao(0);
+      }
+      return;
+    }
+    const totalItens = sugestoesFornecedor.length + 1; // +1 = opção "Cadastrar fornecedor"
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceSugestao((i) => (i + 1) % totalItens);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceSugestao((i) => (i <= 0 ? totalItens - 1 : i - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceSugestao >= 0 && indiceSugestao < sugestoesFornecedor.length) {
+        selecionarFornecedor(sugestoesFornecedor[indiceSugestao].candidato);
+      } else if (indiceSugestao === sugestoesFornecedor.length) {
+        abrirModalFornecedor();
+      }
+    }
+  };
+
+  // --- Fornecedor — modal inline de cadastro (D-08/D-12) ---
+
+  const abrirModalFornecedor = () => {
+    setNomeNovoFornecedor('');
+    setCnpjNovoFornecedor('');
+    setErroNovoFornecedor(null);
+    setSugestoesAbertas(false);
+    setIndiceSugestao(-1);
+    setModalFornecedorAberto(true);
+  };
+
+  const fecharModalFornecedor = () => {
+    setModalFornecedorAberto(false);
+    buscaFornecedorRef.current?.focus();
+  };
+
+  const handleModalFornecedorKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      fecharModalFornecedor();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+
+    const focoPossivel = modalFornecedorRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    );
+    if (!focoPossivel || focoPossivel.length === 0) return;
+    const primeiro = focoPossivel[0];
+    const ultimo = focoPossivel[focoPossivel.length - 1];
+    if (e.shiftKey && document.activeElement === primeiro) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && document.activeElement === ultimo) {
+      e.preventDefault();
+      primeiro.focus();
+    }
+  };
+
+  const salvarFornecedor = async () => {
+    setErroNovoFornecedor(null);
+    if (nomeNovoFornecedor.trim() === '') {
+      setErroNovoFornecedor('Informe o nome do fornecedor.');
+      return;
+    }
+    setSalvandoFornecedor(true);
+    try {
+      const novo = await fetchJson<Fornecedor>('/fornecedores', {
+        method: 'POST',
+        body: JSON.stringify({
+          nome: nomeNovoFornecedor.trim(),
+          cnpj: cnpjNovoFornecedor.trim() || null,
+        }),
+      });
+      setFornecedores((prev) => [...prev, novo]);
+      setFornecedorId(novo.id);
+      setTextoFornecedor(novo.nome);
+      setModalFornecedorAberto(false);
+      buscaFornecedorRef.current?.focus();
+    } catch (err) {
+      setErroNovoFornecedor(
+        err instanceof ApiError
+          ? err.message
+          : 'Falha ao cadastrar o fornecedor. Tente novamente.',
+      );
+    } finally {
+      setSalvandoFornecedor(false);
     }
   };
 
@@ -151,6 +345,8 @@ export default function Entregas() {
     setNotaNumero('');
     setObservacoes('');
     setEmitente(null);
+    setTextoFornecedor('');
+    fornecedorTocadoRef.current = false;
     setLinhas([]);
     setFluxo('editando');
     setErroSubmit(null);
@@ -379,6 +575,14 @@ export default function Entregas() {
       setFornecedorId(null);
       setObservacoes('');
       setEmitente(resultado.emitente);
+      setTextoFornecedor('');
+      fornecedorTocadoRef.current = false;
+      // Pré-seleção do fornecedor pelo emitente da NF (D-09/D-22) — confirmável.
+      const preSelecionado = preSelecionarEmitente(fornecedores, resultado.emitente);
+      if (preSelecionado) {
+        setFornecedorId(preSelecionado.id);
+        setTextoFornecedor(preSelecionado.nome);
+      }
       setFluxo('editando');
       setErroSubmit(null);
       setSucessoMsg(null);
@@ -485,7 +689,9 @@ export default function Entregas() {
       setOrigem('manual');
       setDataEntrega(dataHojeLocal());
       setFornecedorId(null);
+      setTextoFornecedor('');
       setObservacoes('');
+      fornecedorTocadoRef.current = false;
       await recarregar();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -706,7 +912,9 @@ export default function Entregas() {
                   setOrigem('manual');
                   setDataEntrega(dataHojeLocal());
                   setFornecedorId(null);
+                  setTextoFornecedor('');
                   setObservacoes('');
+                  fornecedorTocadoRef.current = false;
                 }}
               >
                 Cancelar
@@ -726,6 +934,101 @@ export default function Entregas() {
                 onChange={(e) => setDataEntrega(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="fornecedor-busca">Fornecedor</label>
+              <div
+                className="fornecedor-autocomplete"
+                onBlur={() => {
+                  setSugestoesAbertas(false);
+                  setIndiceSugestao(-1);
+                }}
+              >
+                <input
+                  id="fornecedor-busca"
+                  ref={buscaFornecedorRef}
+                  type="text"
+                  role="combobox"
+                  aria-expanded={sugestoesAbertas}
+                  aria-controls="fornecedor-sugestoes"
+                  aria-autocomplete="list"
+                  className="form-input"
+                  value={textoFornecedor}
+                  onChange={(e) => aoDigitarFornecedor(e.target.value)}
+                  onKeyDown={handleFornecedorKeyDown}
+                  placeholder="Digite para buscar ou cadastrar"
+                  autoComplete="off"
+                />
+                {erroFornecedores && (
+                  <p className="alerta-erro fornecedor-erro" role="alert">
+                    {erroFornecedores}{' '}
+                    <button
+                      type="button"
+                      className="fornecedor-retry"
+                      onClick={recarregarFornecedores}
+                    >
+                      Tentar novamente
+                    </button>
+                  </p>
+                )}
+                {sugestoesAbertas && !erroFornecedores && (
+                  <ul
+                    className="sugestoes-lista"
+                    id="fornecedor-sugestoes"
+                    role="listbox"
+                  >
+                    <li className="sugestoes-rotulo-item" role="presentation">
+                      <span className="sugestoes-rotulo">Sugestões</span>
+                    </li>
+                    {sugestoesFornecedor.map((sugestao, i) => (
+                      <li key={sugestao.candidato.id} role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={i === indiceSugestao}
+                          className={`sugestao-item${i === indiceSugestao ? ' sugestao-item-ativa' : ''}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selecionarFornecedor(sugestao.candidato);
+                          }}
+                          onMouseEnter={() => setIndiceSugestao(i)}
+                        >
+                          <span className="sugestao-nome">
+                            {sugestao.candidato.nome}
+                            {sugestao.candidato.cnpj ? (
+                              <span className="sugestao-cnpj">
+                                {' '}
+                                — CNPJ {sugestao.candidato.cnpj}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="sugestao-motivo">
+                            {sugestao.motivo}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    <li role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={indiceSugestao === sugestoesFornecedor.length}
+                        className={`sugestao-item sugestao-cadastrar${indiceSugestao === sugestoesFornecedor.length ? ' sugestao-item-ativa' : ''}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          abrirModalFornecedor();
+                        }}
+                        onMouseEnter={() =>
+                          setIndiceSugestao(sugestoesFornecedor.length)
+                        }
+                      >
+                        Cadastrar fornecedor
+                      </button>
+                    </li>
+                  </ul>
+                )}
+              </div>
             </div>
 
             {origem === 'xml' && (
@@ -1074,6 +1377,85 @@ export default function Entregas() {
                 onClick={() => setDetalhe(null)}
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* Modal inline de fornecedor (D-08/D-12 — preserva o rascunho)     */}
+      {/* ================================================================= */}
+      {modalFornecedorAberto && (
+        <div className="modal-overlay">
+          <div
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-fornecedor-titulo"
+            ref={modalFornecedorRef}
+            onKeyDown={handleModalFornecedorKeyDown}
+          >
+            <div className="modal-header">
+              <h2 id="modal-fornecedor-titulo">Cadastrar fornecedor</h2>
+              <button
+                type="button"
+                className="btn-fechar"
+                onClick={fecharModalFornecedor}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="form-group">
+                <label htmlFor="novo-fornecedor-nome">Nome</label>
+                <input
+                  id="novo-fornecedor-nome"
+                  type="text"
+                  className="form-input"
+                  value={nomeNovoFornecedor}
+                  onChange={(e) => setNomeNovoFornecedor(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="novo-fornecedor-cnpj">CNPJ (opcional)</label>
+                <input
+                  id="novo-fornecedor-cnpj"
+                  type="text"
+                  className="form-input"
+                  value={cnpjNovoFornecedor}
+                  onChange={(e) => setCnpjNovoFornecedor(e.target.value)}
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+
+              {erroNovoFornecedor && (
+                <p className="alerta-erro" role="alert">
+                  {erroNovoFornecedor}
+                </p>
+              )}
+            </div>
+
+            <div className="modal-acoes">
+              <button
+                type="button"
+                className="btn-secundario"
+                onClick={fecharModalFornecedor}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primario"
+                onClick={salvarFornecedor}
+                disabled={salvandoFornecedor}
+              >
+                {salvandoFornecedor ? 'Salvando…' : 'Salvar fornecedor'}
               </button>
             </div>
           </div>
