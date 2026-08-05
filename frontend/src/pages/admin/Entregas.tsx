@@ -853,21 +853,29 @@ export default function Entregas() {
 
   // --- Helpers de renderização ---
 
+  // obs #1: o botão NUNCA fica desabilitado em silêncio — habilita sempre que
+  // houver linhas ativas; as validações de itemId/quantidade/unidade acontecem
+  // no handleSubmit com mensagem visível (erroSubmit) + hint dinâmico abaixo do botão.
   const podeSubmeter = (): boolean => {
     const ativas = linhas.filter((l) => !l.removida);
-    if (ativas.length === 0) return false;
-    if (
-      ativas.some((l) => {
-        if (l.itemId === null || l.quantidade <= 0) return true;
-        const item = itens.find((entrada) => entrada.id === l.itemId);
-        return Boolean(
-          item &&
-          !itemTemUnidadeOficial(item, l.unidade) &&
-          (!l.fatorConversao || Number(l.fatorConversao) <= 0),
-        );
-      })
-    ) return false;
-    return true;
+    return ativas.length > 0 && !salvando;
+  };
+
+  /** Hint dinâmico sob o botão (obs #1): linhas ativas incompletas ficam visíveis. */
+  const hintLinhasIncompletas = (): string | null => {
+    const ativas = linhas.filter((l) => !l.removida);
+    if (ativas.length === 0) return null;
+    const semItem = ativas.filter((l) => l.itemId === null).length;
+    if (semItem > 0) {
+      return `${semItem} ${semItem === 1 ? 'linha sem' : 'linhas sem'} item vinculado — selecione ou cadastre o item para continuar`;
+    }
+    const qtdInvalida = ativas.filter(
+      (l) => l.itemId !== null && l.quantidade <= 0,
+    ).length;
+    if (qtdInvalida > 0) {
+      return `${qtdInvalida} ${qtdInvalida === 1 ? 'linha com' : 'linhas com'} quantidade inválida — informe uma quantidade maior que zero para continuar`;
+    }
+    return null;
   };
 
   const badgeAcao = (acao: string) => {
@@ -886,6 +894,9 @@ export default function Entregas() {
   // =====================================================================
   // Render
   // =====================================================================
+
+  // Linhas ativas (sem remoção) — usadas no botão de submit (obs #1)
+  const ativas = linhas.filter((l) => !l.removida);
 
   return (
     <div>
@@ -918,7 +929,7 @@ export default function Entregas() {
                 <tr>
                   <th>Data/hora</th>
                   <th>Itens (qtd)</th>
-                  <th>Registrado por</th>
+                  <th>Fornecedor</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -938,7 +949,8 @@ export default function Entregas() {
                         {new Date(e.data_hora).toLocaleString('pt-BR')}
                       </td>
                       <td>{e.qtd_itens}</td>
-                      <td>{e.id_usuario}</td>
+                      {/* obs #2: a listagem mostra o Fornecedor (não o registrador) */}
+                      <td>{e.fornecedor_nome ?? '—'}</td>
                       <td>
                         <button
                           type="button"
@@ -1434,14 +1446,23 @@ export default function Entregas() {
               </p>
             )}
 
-            <button
-              type="button"
-              className="btn-primario"
-              onClick={handleSubmit}
-              disabled={!podeSubmeter() || salvando}
-            >
-              {salvando ? 'Salvando…' : 'Confirmar recebimento'}
-            </button>
+            <div className="submit-area">
+              {/* obs #1: desabilitado apenas sem linhas ativas ou durante o save —
+                  linhas incompletas produzem hint/erro visível, nunca botão mudo */}
+              <button
+                type="button"
+                className="btn-primario"
+                onClick={handleSubmit}
+                disabled={ativas.length === 0 || salvando}
+              >
+                {salvando ? 'Salvando…' : 'Confirmar recebimento'}
+              </button>
+              {podeSubmeter() && hintLinhasIncompletas() && (
+                <p className="hint-submit" role="status">
+                  {hintLinhasIncompletas()}
+                </p>
+              )}
+            </div>
           </div>
 
           {sucessoMsg && fluxo === 'editando' && (
@@ -1527,10 +1548,28 @@ export default function Entregas() {
             </div>
 
             <div className="modal-body">
-              <p className="detalhe-meta">
-                {new Date(detalhe.data_hora).toLocaleString('pt-BR')} — Registrado
-                por: {detalhe.id_usuario}
-              </p>
+              {/* obs #2/#3: fornecedor, observações, registrador (nome) e data */}
+              <div className="detalhe-meta">
+                <p>
+                  <strong>Fornecedor:</strong> {detalhe.fornecedor_nome ?? '—'}
+                </p>
+                <p>
+                  <strong>Observações:</strong> {detalhe.observacoes ?? '—'}
+                </p>
+                <p>
+                  <strong>Registrado por:</strong> {detalhe.id_usuario_nome ?? '—'}
+                </p>
+                <p>
+                  <strong>Data da entrega:</strong>{' '}
+                  {detalhe.data_entrega
+                    ? new Date(detalhe.data_entrega + 'T00:00:00').toLocaleDateString('pt-BR')
+                    : '—'}
+                </p>
+                <p>
+                  <strong>Registrado em:</strong>{' '}
+                  {new Date(detalhe.data_hora).toLocaleString('pt-BR')}
+                </p>
+              </div>
 
               <ul className="detalhe-lista">
                 {detalhe.itens.map((item) => {

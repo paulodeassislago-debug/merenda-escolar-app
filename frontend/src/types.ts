@@ -151,9 +151,11 @@ export interface EntregaResumo {
   id: number;
   data_hora: string;
   id_usuario: number;
+  id_usuario_nome: string | null;
   origem: OrigemEntrega;
   data_entrega: string;
   fornecedor_nome: string | null;
+  observacoes: string | null;
   qtd_itens: number;
 }
 
@@ -161,6 +163,7 @@ export interface EntregaDetalhe {
   id: number;
   data_hora: string;
   id_usuario: number;
+  id_usuario_nome: string | null;
   origem: OrigemEntrega;
   data_entrega: string;
   fornecedor_id: number | null;

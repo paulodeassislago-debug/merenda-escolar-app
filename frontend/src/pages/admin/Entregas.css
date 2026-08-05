@@ -576,8 +576,43 @@ select.form-input {
 /* Detail modal meta line */
 .detalhe-meta {
   margin: 0 0 1rem;
-  color: var(--texto-suave);
+  padding: 0.75rem 1rem;
+  background-color: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  color: var(--texto);
   font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detalhe-meta p {
+  margin: 0;
+}
+
+.detalhe-meta strong {
+  color: var(--verde-escuro);
+}
+
+/* obs #1: hint dinâmico sob o botão "Confirmar recebimento" — linhas
+   incompletas nunca deixam o botão mudo (--amarelo sobre --fundo, tokens) */
+.submit-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.375rem;
+}
+
+.hint-submit {
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  background-color: rgba(197, 210, 39, 0.15);
+  border: 1px solid var(--amarelo);
+  border-radius: var(--raio);
+  color: var(--texto);
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 
 /* =========================================================================
