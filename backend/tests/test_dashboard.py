@@ -44,10 +44,20 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
         headers=_auth(admin_token),
     )
 
-    # Entrega de hoje
+    # Fornecedor e entrega de hoje
+    fornecedor = client.post(
+        "/fornecedores",
+        json={"nome": "Fornecedor Teste"},
+        headers=_auth(admin_token),
+    ).json()
     client.post(
         "/entregas",
-        json={"itens": [{"item_id": item["id"], "quantidade": 10, "acao": "recebido"}]},
+        json={
+            "origem": "xml",
+            "data_entrega": "2026-08-05",
+            "fornecedor_id": fornecedor["id"],
+            "itens": [{"item_id": item["id"], "quantidade": 10, "acao": "recebido"}],
+        },
         headers=_auth(admin_token),
     )
 

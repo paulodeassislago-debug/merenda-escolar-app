@@ -175,6 +175,7 @@ def listar_itens(
             "saldo_atual": item.saldo_atual,
             "unidade_interna": item.unidade_interna,
             "fator_conversao": item.fator_conversao,
+            "limiar": item.limiar,
         }
         for item in itens
     ]
@@ -211,6 +212,7 @@ def criar_item(
         saldo_atual=dados.saldo_atual * (dados.fator_conversao or 1.0),
         unidade_interna=dados.unidade_interna or "KG",
         fator_conversao=dados.fator_conversao or 1.0,
+        limiar=dados.limiar,
     )
     db.add(novo)
     db.commit()
@@ -222,6 +224,7 @@ def criar_item(
         "saldo_atual": novo.saldo_atual,
         "unidade_interna": novo.unidade_interna,
         "fator_conversao": novo.fator_conversao,
+        "limiar": novo.limiar,
     }
 
 
@@ -272,6 +275,9 @@ def atualizar_item(
     if dados.saldo_atual is not None:
         item.saldo_atual = dados.saldo_atual * item.fator_conversao
 
+    if dados.limiar is not None:
+        item.limiar = dados.limiar
+
     db.commit()
     db.refresh(item)
     return {
@@ -281,6 +287,7 @@ def atualizar_item(
         "saldo_atual": item.saldo_atual,
         "unidade_interna": item.unidade_interna,
         "fator_conversao": item.fator_conversao,
+        "limiar": item.limiar,
     }
 
 
@@ -370,6 +377,39 @@ def excluir_conversao(
     db.delete(conv)
     db.commit()
     return {"mensagem": "Conversão excluída com sucesso!"}
+
+
+# --- FORNECEDORES (GET/POST admin+secretaria — D-06/D-08) ---
+
+@app.get("/fornecedores")
+def listar_fornecedores(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    fornecedores = db.query(models.Fornecedor).order_by(models.Fornecedor.nome).all()
+    return [
+        {"id": f.id, "nome": f.nome, "cnpj": f.cnpj}
+        for f in fornecedores
+    ]
+
+
+@app.post("/fornecedores")
+def criar_fornecedor(
+    dados: schemas.FornecedorCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    if not dados.nome or not dados.nome.strip():
+        raise HTTPException(status_code=400, detail="Nome do fornecedor é obrigatório")
+
+    novo = models.Fornecedor(
+        nome=dados.nome.strip(),
+        cnpj=dados.cnpj.strip() if dados.cnpj else None,
+    )
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+    return {"id": novo.id, "nome": novo.nome, "cnpj": novo.cnpj}
 
 
 # --- CARDÁPIO (GET admin+sec; CRUD somente admin) ---
@@ -793,7 +833,14 @@ def registrar_entrega(
     for (item_id, _), (unidade, fator) in conversoes_pendentes.items():
         _upsert_conversao(db, item_id, unidade, fator)
 
-    entrega = models.Entrega(id_usuario=usuario.id)
+    entrega = models.Entrega(
+        id_usuario=usuario.id,
+        origem=dados.origem,
+        data_entrega=dados.data_entrega,
+        fornecedor_id=dados.fornecedor_id,
+        nota_numero=dados.nota_numero,
+        observacoes=dados.observacoes,
+    )
     db.add(entrega)
     db.flush()  # garante o id antes de gravar os itens
 
@@ -826,15 +873,24 @@ def listar_entregas(
     if data:
         query = query.filter(func.date(models.Entrega.data_hora) == data.isoformat())
     entregas = query.order_by(models.Entrega.id.desc()).all()
-    return [
-        {
+    resultado = []
+    for e in entregas:
+        fornecedor = db.query(models.Fornecedor).filter(
+            models.Fornecedor.id == e.fornecedor_id
+        ).first() if e.fornecedor_id else None
+        resultado.append({
             "id": e.id,
             "data_hora": e.data_hora.isoformat(),
             "id_usuario": e.id_usuario,
+            "origem": e.origem,
+            "data_entrega": e.data_entrega.isoformat() if e.data_entrega else None,
+            "fornecedor_id": e.fornecedor_id,
+            "fornecedor_nome": fornecedor.nome if fornecedor else None,
+            "nota_numero": e.nota_numero,
+            "observacoes": e.observacoes,
             "qtd_itens": db.query(models.ItemEntrega).filter(models.ItemEntrega.entrega_id == e.id).count(),
-        }
-        for e in entregas
-    ]
+        })
+    return resultado
 
 
 @app.get("/entregas/{entrega_id}")
@@ -848,10 +904,19 @@ def detalhar_entrega(
         raise HTTPException(status_code=404, detail="Entrega não encontrada")
 
     itens = db.query(models.ItemEntrega).filter(models.ItemEntrega.entrega_id == entrega_id).all()
+    fornecedor = db.query(models.Fornecedor).filter(
+        models.Fornecedor.id == entrega.fornecedor_id
+    ).first() if entrega.fornecedor_id else None
     return {
         "id": entrega.id,
         "data_hora": entrega.data_hora.isoformat(),
         "id_usuario": entrega.id_usuario,
+        "origem": entrega.origem,
+        "data_entrega": entrega.data_entrega.isoformat() if entrega.data_entrega else None,
+        "fornecedor_id": entrega.fornecedor_id,
+        "fornecedor_nome": fornecedor.nome if fornecedor else None,
+        "nota_numero": entrega.nota_numero,
+        "observacoes": entrega.observacoes,
         "itens": [
             {
                 "id": ie.id,

@@ -46,6 +46,7 @@ class ItemCreate(BaseModel):
     saldo_atual: float = 0.0
     unidade_interna: str | None = None
     fator_conversao: float | None = None
+    limiar: float = Field(5.0, gt=0)
 
 
 class ItemUpdate(BaseModel):
@@ -54,6 +55,7 @@ class ItemUpdate(BaseModel):
     saldo_atual: float | None = None
     unidade_interna: str | None = None
     fator_conversao: float | None = None
+    limiar: float | None = Field(default=None, gt=0)
 
 
 class ItemResponse(BaseModel):
@@ -63,6 +65,7 @@ class ItemResponse(BaseModel):
     saldo_atual: float
     unidade_interna: str
     fator_conversao: float
+    limiar: float
 
 
 # --- Conversões ---
@@ -148,7 +151,25 @@ class EntregaItemRequest(BaseModel):
 
 
 class EntregaCreate(BaseModel):
+    origem: str  # "xml" | "manual" — validado no handler
+    data_entrega: date  # obrigatória (D-05)
+    fornecedor_id: int  # obrigatório (D-05)
+    nota_numero: str | None = None
+    observacoes: str | None = None
     itens: list[EntregaItemRequest] = Field(min_length=1)
+
+
+# --- Fornecedores ---
+
+class FornecedorCreate(BaseModel):
+    nome: str
+    cnpj: str | None = None
+
+
+class FornecedorResponse(BaseModel):
+    id: int
+    nome: str
+    cnpj: str | None
 
 
 # --- Refeições (Fase 3 — com auditoria de ajustes) ---
