@@ -43,14 +43,14 @@
 - [x] **DELIV-02**: Usuario pode criar entrega manual com um ou mais itens.
 - [x] **DELIV-03**: Frontend pode importar XML NF-e, preencher linhas e permitir revisao humana antes do envio.
 - [x] **DELIV-04**: Item recebido incrementa o estoque; item excluido nao altera o saldo.
-- [x] **DELIV-05**: Alteracao ou exclusao de item exige justificativa individual.
-- [x] **DELIV-06**: Cada item da entrega registra acao, quantidade, justificativa e fator aplicado quando pertinente.
+- [ ] **DELIV-05**: Alteracao ou exclusao de item exige justificativa individual apenas em entregas de origem XML (NF-e); entregas manuais nao exigem justificativa por item. **Phase 8 (revisado)**
+- [ ] **DELIV-06**: Cada item da entrega registra acao, quantidade, justificativa (quando pertinente) e fator aplicado; entregas manuais registram descricao no nivel da entrega. **Phase 8 (revisado)**
 - [x] **DELIV-07**: Entrega vazia, item inexistente ou acao invalida falham antes de persistir alteracoes parciais.
 
 ### Meals and Kitchen
 
 - [x] **MEAL-01**: Cozinheira pode consultar refeicoes e planejamento do dia conforme seu perfil.
-- [x] **MEAL-02**: Lancamento registra tipo, quantidade de alunos, usuario e planejamento relacionado.
+- [ ] **MEAL-02**: Lancamento registra tipo, quantidade de alunos (derivada da configuracao de periodos definida pelo admin), usuario e planejamento relacionado; a cozinheira nao informa mais a quantidade. **Phase 8 (revisado)**
 - [x] **MEAL-03**: Lancamento converte medidas caseiras e deduz o estoque correspondente.
 - [x] **MEAL-04**: Ajuste de quantidade, adicao ou remocao de ingrediente exige justificativa individual.
 - [x] **MEAL-05**: `refeicao_itens` preserva quantidade original, quantidade ajustada, medida e justificativa.
@@ -94,6 +94,18 @@ These improvements are intentionally scheduled after Phase 7. They must not chan
 - [ ] **IMP-04**: O formulário de Entregas normaliza nomes de fornecedores e sugere correspondências com itens existentes para reduzir duplicidades, sempre exigindo confirmação humana antes de vincular ou criar um item.
 - [ ] **IMP-05**: Sugestões ambíguas exibem as melhores opções e o motivo/confiança da sugestão; nenhuma correspondência ou fusão é aplicada silenciosamente.
 
+### Delivery Origin, Supplier and Audit (Phase 8 — user flow revision)
+
+- [ ] **IMP-06**: Toda entrega possui origem (`xml` ou `manual`), data de entrega obrigatória e fornecedor associado; entregas XML salvam o número da nota (obrigatório), entregas manuais o tornam opcional.
+- [ ] **IMP-07**: Fornecedores são registrados em tabela própria (nome obrigatório, CNPJ opcional); o form de Entregas permite escolher um existente (campo com sugestão) ou cadastrar um novo inline, para admin e secretaria.
+- [ ] **IMP-08**: Entrega manual exige observações no nível da entrega; entrega XML não exige. Justificativa por item é obrigatória apenas para ações `alterado`/`excluído` de entregas XML.
+
+### Fixed Students per Period and Stock Projection (Phase 8 — user flow revision)
+
+- [ ] **IMP-09**: Admin configura a quantidade de alunos por período (`manha`, `tarde`, `noite`); o total de cada slot é derivado (Lanche da Manhã = manhã; Almoço = manhã + tarde; Lanche da Tarde = tarde; Janta = noite) e a receita escala por esse total no lançamento da refeição.
+- [ ] **IMP-10**: O lançamento de refeição registra `qtd_alunos` derivado da configuração vigente, sem digitação pela cozinheira; a refeição registrada continua deduzindo o estoque e bloqueando quando insuficiente.
+- [ ] **IMP-11**: O planejamento não bloqueia por falta de estoque, mas calcula e exibe a projeção cumulativa da semana (consumo estimado por item vs. saldo), avisando ao admin os itens que faltarão em cada refeição planejada.
+
 ## v2 Requirements
 
 ### Production Readiness
@@ -129,13 +141,16 @@ These improvements are intentionally scheduled after Phase 7. They must not chan
 | QUAL-01..QUAL-04 | Phases 1-5 | Complete |
 | QUAL-05..QUAL-06 | Phase 7 | Pending |
 | IMP-01..IMP-05 | Phase 8 | Pending |
+| IMP-06..IMP-11 | Phase 8 | Pending |
+| DELIV-05, DELIV-06 | Phase 8 (revisado) | Pending |
+| MEAL-02 | Phase 8 (revisado) | Pending |
 
 **Coverage:**
 
-- v1 requirements: 52 total
-- Complete: 40
-- Pending: 12
-- Mapped to phases: 52
+- v1 requirements: 58 total
+- Complete: 37
+- Pending: 21
+- Mapped to phases: 58
 - Unmapped: 0
 
 ---
