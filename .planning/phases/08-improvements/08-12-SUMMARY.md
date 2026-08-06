@@ -41,7 +41,7 @@ patterns-established:
 requirements-completed: [IMP-11]
 
 # Metrics
-duration: 18min
+duration: 20min
 completed: 2026-08-06
 ---
 
@@ -51,9 +51,9 @@ completed: 2026-08-06
 
 ## Performance
 
-- **Duration:** 18 min
+- **Duration:** 20 min
 - **Started:** 2026-08-06T00:02:00Z (aprox.)
-- **Completed:** 2026-08-06T00:19:50Z
+- **Completed:** 2026-08-06T00:21:35Z
 - **Tasks:** 2
 - **Files modified:** 4
 
@@ -70,6 +70,7 @@ Cada task foi commitada atomicamente:
 
 1. **task 1: Backend — ruptura específica por refeição** - `e4bdb44` (fix)
 2. **task 2: Frontend — prévia reativa consistente e estado de carregamento** - `7702564` (feat)
+3. **task 2 follow-up: invalidar projeção ao trocar de semana** - `4f93243` (fix)
 
 ## Files Created/Modified
 
@@ -95,10 +96,18 @@ Cada task foi commitada atomicamente:
 - **Verification:** `venv/bin/python -m pytest tests/test_planejamento.py -q` e suíte completa verdes.
 - **Committed in:** `e4bdb44`
 
+**2. [Rule 1 - Bug] Invalidada projeção antiga durante troca de semana**
+- **Found during:** task 2 (revisão de concorrência após a verificação)
+- **Issue:** a limpeza do efeito que troca a semana não invalidava imediatamente a requisição anterior; uma resposta antiga ainda poderia atualizar a projeção enquanto os dados da nova semana carregavam.
+- **Fix:** o cleanup agora cancela debounce/requisição, incrementa a geração e limpa a projeção antes de iniciar a nova semana.
+- **Files modified:** `frontend/src/pages/admin/Planejamento.tsx`
+- **Verification:** `npm run build` e `npm run lint` verdes após a correção.
+- **Committed in:** `4f93243`
+
 ---
 
-**Total deviations:** 1 auto-fixed (1 Rule 1 - bug de expectativa de teste).
-**Impact on plan:** Nenhum impacto funcional; a correção tornou a regressão fiel à regra de alunos por slot.
+**Total deviations:** 2 auto-fixed (2 Rule 1).
+**Impact on plan:** Correções diretamente ligadas à confiabilidade da projeção; sem escopo adicional.
 
 ## Issues Encountered
 
@@ -133,6 +142,6 @@ None - os arquivos modificados não introduzem placeholders, dados vazios usados
 ## Self-Check: PASSED
 
 - SUMMARY.md e os quatro arquivos modificados existem.
-- Commits `e4bdb44` e `7702564` existem no histórico.
-- Backend: 156 testes passaram; frontend build e lint passaram.
+- Commits `e4bdb44`, `7702564` e `4f93243` existem no histórico.
+- Backend: 156 testes passaram; frontend build e lint passaram após a correção final.
 - STATE.md, ROADMAP.md, REQUIREMENTS.md, PROJECT.md e `backend/venv/` não foram incluídos nem alterados por este plano.
