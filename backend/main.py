@@ -746,9 +746,9 @@ def _simular_semana(
     ordem de `SLOTS_PLANEJAMENTO`. `ate_dia` limita a simulação (avisos do POST).
 
     Ruptura é granular por SLOT (obs #5): cada dia responde `slots[].rupturas`
-    apenas no slot em que o saldo corrente do item fica negativo pela primeira vez
-    no dia (item já negativo em slot anterior do mesmo dia não repete). `rascunho`
-    sobrepõe o planejado para pré-visualização sem salvar (obs #4).
+    para cada ingrediente cujo consumo daquele slot excede o saldo disponível
+    antes do próprio slot. `rascunho` sobrepõe o planejado para pré-visualização
+    sem salvar (obs #4).
 
     Config de alunos ausente → `configurado: false` com tudo zerado (não levanta).
     """
@@ -774,7 +774,6 @@ def _simular_semana(
 
     for dia in range(ate_dia + 1 if ate_dia is not None else 7):
         slots_dia: list[dict] = []
-        ja_negativo_no_dia: set[int] = set()
         for slot in SLOTS_PLANEJAMENTO:
             cardapio_item_id = rascunho_map.get((dia, slot))
             if cardapio_item_id is None:
@@ -790,19 +789,21 @@ def _simular_semana(
             nao_avaliaveis.update(nao_av)
             rupturas_slot: list[dict] = []
             for item_id, qtd in consumo.items():
+                saldo_antes_do_slot = saldo_corrente[item_id]
                 consumo_semana[item_id] += qtd
                 saldo_corrente[item_id] -= qtd
                 if saldo_corrente[item_id] < 0 and primeiro_dia_ruptura[item_id] is None:
                     primeiro_dia_ruptura[item_id] = dia
-                # Registra a ruptura apenas no slot em que o saldo fica negativo
-                # pela primeira vez no dia (obs #5) — sem repetir nos slots seguintes.
-                if saldo_corrente[item_id] < 0 and item_id not in ja_negativo_no_dia:
-                    ja_negativo_no_dia.add(item_id)
+                # Cada slot responde pela própria falta. O saldo anterior pode
+                # estar negativo por consumo anterior, mas nunca reduzimos a
+                # falta atribuível ao slot abaixo de zero.
+                faltando = max(0.0, qtd - max(saldo_antes_do_slot, 0.0))
+                if faltando > 0:
                     item = next(i for i in itens_catalogo if i.id == item_id)
                     rupturas_slot.append({
                         "item_id": item_id,
                         "nome": item.nome,
-                        "faltando": -saldo_corrente[item_id],
+                        "faltando": faltando,
                         "unidade_oficial": item.unidade_oficial,
                     })
             slots_dia.append({"slot": slot, "rupturas": rupturas_slot})

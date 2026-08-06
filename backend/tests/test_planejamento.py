@@ -551,3 +551,160 @@ def test_p9_rascunho_malformado_ignorado(client, admin_user, admin_token):
     )
     assert resp.status_code == 200
     assert resp.json() == base.json()
+
+
+# P10 — Cada slot que consome o mesmo item recebe sua própria ruptura, com o
+# déficit calculado contra o saldo que existia antes daquele slot.
+def test_p10_ruptura_repetida_por_slot_com_deficit_proprio(client, admin_user, admin_token):
+    batata = _criar_item(client, admin_token, "Batata", saldo=100.0)
+    _configurar_alunos(client, admin_token)
+
+    prato_almoco = _criar_prato(client, admin_token, "Frango com Purê", tipo="Almoço")
+    client.post(
+        f"/cardapio/{prato_almoco['id']}/receita",
+        json={"item_id": batata["id"], "quantidade": 1, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    prato_janta = _criar_prato(client, admin_token, "Sopa de Legumes", tipo="Janta")
+    client.post(
+        f"/cardapio/{prato_janta['id']}/receita",
+        json={"item_id": batata["id"], "quantidade": 1, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    for slot, prato in (("Almoço", prato_almoco), ("Janta", prato_janta)):
+        resp = client.post(
+            "/planejamento",
+            json={
+                "cardapio_item_id": prato["id"],
+                "tipo_refeicao": slot,
+                "dia_semana": 0,
+                "data_inicio_vigencia": "2026-07-27",
+            },
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+
+    dados = client.get(
+        "/planejamento/projecao?data=2026-07-31",
+        headers=_auth(admin_token),
+    ).json()
+    dia0 = next(d for d in dados["dias"] if d["dia_semana"] == 0)
+    almoco = next(s for s in dia0["slots"] if s["slot"] == "Almoço")
+    janta = next(s for s in dia0["slots"] if s["slot"] == "Janta")
+
+    assert almoco["rupturas"] == [{
+        "item_id": batata["id"],
+        "nome": "Batata",
+        "faltando": 80,
+        "unidade_oficial": "KG",
+    }]
+    # O Almoço deixa o saldo em -80; a Janta precisa de 40 kg próprios.
+    assert janta["rupturas"] == [{
+        "item_id": batata["id"],
+        "nome": "Batata",
+        "faltando": 40,
+        "unidade_oficial": "KG",
+    }]
+
+
+# P11 — Um slot sem o ingrediente não recebe ruptura, mesmo depois de o saldo
+# ter ficado negativo em um slot anterior do mesmo dia.
+def test_p11_slot_sem_ingrediente_nao_recebe_ruptura(client, admin_user, admin_token):
+    batata = _criar_item(client, admin_token, "Batata", saldo=1.0)
+    _configurar_alunos(client, admin_token)
+
+    prato_com_batata = _criar_prato(client, admin_token, "Frango com Purê", tipo="Almoço")
+    client.post(
+        f"/cardapio/{prato_com_batata['id']}/receita",
+        json={"item_id": batata["id"], "quantidade": 1, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    prato_sem_batata = _criar_prato(client, admin_token, "Arroz com Feijão", tipo="Janta")
+
+    for slot, prato in (("Almoço", prato_com_batata), ("Janta", prato_sem_batata)):
+        resp = client.post(
+            "/planejamento",
+            json={
+                "cardapio_item_id": prato["id"],
+                "tipo_refeicao": slot,
+                "dia_semana": 0,
+                "data_inicio_vigencia": "2026-07-27",
+            },
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+
+    dados = client.get(
+        "/planejamento/projecao?data=2026-07-31",
+        headers=_auth(admin_token),
+    ).json()
+    dia0 = next(d for d in dados["dias"] if d["dia_semana"] == 0)
+    almoco = next(s for s in dia0["slots"] if s["slot"] == "Almoço")
+    janta = next(s for s in dia0["slots"] if s["slot"] == "Janta")
+
+    assert [r["item_id"] for r in almoco["rupturas"]] == [batata["id"]]
+    assert all(r["item_id"] != batata["id"] for r in janta["rupturas"])
+
+
+# P12 — O rascunho completo permite projetar duas alterações de slots na mesma
+# resposta, sem salvar nenhuma delas.
+def test_p12_rascunho_completo_considera_dois_slots(client, admin_user, admin_token):
+    batata = _criar_item(client, admin_token, "Batata", saldo=100.0)
+    _configurar_alunos(client, admin_token)
+
+    prato_base = _criar_prato(client, admin_token, "Arroz Branco", tipo="Almoço")
+    prato_frango = _criar_prato(client, admin_token, "Frango com Purê", tipo="Almoço")
+    prato_sopa = _criar_prato(client, admin_token, "Sopa de Legumes", tipo="Janta")
+    for prato in (prato_frango, prato_sopa):
+        client.post(
+            f"/cardapio/{prato['id']}/receita",
+            json={"item_id": batata["id"], "quantidade": 1, "medida_caseira": "kg"},
+            headers=_auth(admin_token),
+        )
+    _planejar_almoco_semana(client, admin_token, prato_base, [0])
+
+    resp = client.get(
+        "/planejamento/projecao?data=2026-07-31",
+        params={
+            "rascunho": [
+                f"0|Almoço|{prato_frango['id']}",
+                f"0|Janta|{prato_sopa['id']}",
+            ]
+        },
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    dia0 = next(d for d in dados["dias"] if d["dia_semana"] == 0)
+    assert next(s for s in dia0["slots"] if s["slot"] == "Almoço")["rupturas"]
+    assert next(s for s in dia0["slots"] if s["slot"] == "Janta")["rupturas"]
+
+    persistido = client.get(
+        "/planejamento?data=2026-07-31",
+        headers=_auth(admin_token),
+    ).json()
+    assert any(
+        p["dia_semana"] == 0
+        and p["tipo_refeicao"] == "Almoço"
+        and p["cardapio_item_id"] == prato_base["id"]
+        for p in persistido
+    )
+
+
+# P13 — Quando nenhum slot consome o item, não há ruptura.
+def test_p13_sem_falta_continua_sem_rupturas(client, admin_user, admin_token):
+    item = _criar_item(client, admin_token, "Arroz", saldo=1000.0)
+    _configurar_alunos(client, admin_token)
+    prato = _criar_prato(client, admin_token, "Arroz Branco", tipo="Almoço")
+    client.post(
+        f"/cardapio/{prato['id']}/receita",
+        json={"item_id": item["id"], "quantidade": 1, "medida_caseira": "kg"},
+        headers=_auth(admin_token),
+    )
+    _planejar_almoco_semana(client, admin_token, prato, [0])
+
+    dados = client.get(
+        "/planejamento/projecao?data=2026-07-31",
+        headers=_auth(admin_token),
+    ).json()
+    assert all(not slot["rupturas"] for dia in dados["dias"] for slot in dia["slots"])
