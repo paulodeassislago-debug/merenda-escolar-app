@@ -73,6 +73,20 @@ function derivarAvisos(proj: ProjecaoSemana | null): PlanejamentoAviso[] {
   return avisos;
 }
 
+/** Monta o rascunho completo da grade: `dia|slot|cardapio_item_id`. */
+function montarRascunho(selecoesAtuais: Record<string, number | null>): string[] {
+  const rascunho: string[] = [];
+  for (let dia = 0; dia < 7; dia++) {
+    for (const slot of SLOTS_REFEICAO) {
+      const id = selecoesAtuais[chaveSlot(dia, slot)];
+      if (id !== null && id !== undefined) {
+        rascunho.push(`${dia}|${slot}|${id}`);
+      }
+    }
+  }
+  return rascunho;
+}
+
 // --- Componente ---
 
 export default function Planejamento() {
@@ -88,11 +102,14 @@ export default function Planejamento() {
   // Projeção cumulativa da semana (D-17/D-19) — falha isolada nunca derruba a grade
   const [projecao, setProjecao] = useState<ProjecaoSemana | null>(null);
   const [erroProjecao, setErroProjecao] = useState(false);
+  const [carregandoProjecao, setCarregandoProjecao] = useState(false);
   const [avisos, setAvisos] = useState<PlanejamentoAviso[]>([]);
   const projecaoRef = useRef<ProjecaoSemana | null>(null);
   const painelRef = useRef<HTMLDetailsElement>(null);
   // obs #4: debounce do refetch da projeção ao alterar selects da grade (~300ms)
   const debounceProjecaoRef = useRef<number | null>(null);
+  const geracaoProjecaoRef = useRef(0);
+  const abortProjecaoRef = useRef<AbortController | null>(null);
 
   const segunda = segundaDaSemana(semanaRef);
   const domingo = new Date(segunda);
@@ -103,37 +120,58 @@ export default function Planejamento() {
    * `rascunho` (obs #4): pré-visualização das células alteradas no formato
    * `dia|slot|cardapio_item_id` — o backend ignora entradas inválidas (T-08-14).
    */
-  const carregarProjecao = useCallback(async (seg: Date, rascunho?: string[]) => {
+  const carregarProjecao = useCallback(async (seg: Date, rascunho: string[] = []) => {
+    const geracao = ++geracaoProjecaoRef.current;
+    abortProjecaoRef.current?.abort();
+    const controller = new AbortController();
+    abortProjecaoRef.current = controller;
+    setCarregandoProjecao(true);
+    setErroProjecao(false);
+    projecaoRef.current = null;
+    setProjecao(null);
+
     try {
       const params = new URLSearchParams({ data: formatISO(seg) });
-      for (const r of rascunho ?? []) params.append('rascunho', r);
+      for (const r of rascunho) params.append('rascunho', r);
       const proj = await fetchJson<ProjecaoSemana>(
         '/planejamento/projecao?' + params.toString(),
+        { signal: controller.signal },
       );
-      if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return; // semana mudou no meio
+      if (
+        geracao !== geracaoProjecaoRef.current
+        || formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))
+      ) return; // semana mudou ou uma resposta mais nova já foi solicitada
       projecaoRef.current = proj;
       setProjecao(proj);
       setErroProjecao(false);
     } catch {
-      if (formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))) return;
+      if (
+        controller.signal.aborted
+        || geracao !== geracaoProjecaoRef.current
+        || formatISO(seg) !== formatISO(segundaDaSemana(semanaRef))
+      ) return;
       projecaoRef.current = null;
       setProjecao(null);
       setErroProjecao(true);
-    }
-  }, [semanaRef]);
-
-  /** Monta o rascunho da grade inteira: `dia|slot|cardapio_item_id` por célula preenchida. */
-  const montarRascunho = (selecoesAtuais: Record<string, number | null>): string[] => {
-    const rascunho: string[] = [];
-    for (let dia = 0; dia < 7; dia++) {
-      for (const slot of SLOTS_REFEICAO) {
-        const id = selecoesAtuais[chaveSlot(dia, slot)];
-        if (id !== null && id !== undefined) {
-          rascunho.push(`${dia}|${slot}|${id}`);
+    } finally {
+      if (geracao === geracaoProjecaoRef.current) {
+        setCarregandoProjecao(false);
+        if (abortProjecaoRef.current === controller) {
+          abortProjecaoRef.current = null;
         }
       }
     }
-    return rascunho;
+  }, [semanaRef]);
+
+  /** Invalida a projeção visível enquanto o rascunho mais recente aguarda resposta. */
+  const invalidarProjecao = () => {
+    geracaoProjecaoRef.current += 1;
+    abortProjecaoRef.current?.abort();
+    abortProjecaoRef.current = null;
+    projecaoRef.current = null;
+    setProjecao(null);
+    setErroProjecao(false);
+    setCarregandoProjecao(true);
   };
 
   /**
@@ -144,6 +182,7 @@ export default function Planejamento() {
     if (debounceProjecaoRef.current !== null) {
       window.clearTimeout(debounceProjecaoRef.current);
     }
+    invalidarProjecao();
     debounceProjecaoRef.current = window.setTimeout(() => {
       void carregarProjecao(segundaDaSemana(semanaRef), montarRascunho(selecoesAtuais));
     }, 300);
@@ -155,6 +194,8 @@ export default function Planejamento() {
       if (debounceProjecaoRef.current !== null) {
         window.clearTimeout(debounceProjecaoRef.current);
       }
+      abortProjecaoRef.current?.abort();
+      geracaoProjecaoRef.current += 1;
     };
   }, []);
 
@@ -171,9 +212,10 @@ export default function Planejamento() {
 
       setEntradas(entradasData);
       setPratos(pratosData);
-      setSelecoes(buildSelecoes(entradasData));
+      const selecoesIniciais = buildSelecoes(entradasData);
+      setSelecoes(selecoesIniciais);
       setSucesso(false);
-      await carregarProjecao(seg); // atualiza a projeção junto; falha não derruba a grade
+      await carregarProjecao(seg, montarRascunho(selecoesIniciais)); // falha não derruba a grade
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setErro('Sua sessão expirou. Entre novamente.');
@@ -189,6 +231,8 @@ export default function Planejamento() {
   useEffect(() => {
     let cancelled = false;
     const seg = segundaDaSemana(semanaRef);
+    let rascunhoInicial: string[] = [];
+    let dadosCarregados = false;
 
     void (async () => {
       setCarregando(true);
@@ -198,11 +242,14 @@ export default function Planejamento() {
           fetchJson<PlanejamentoEntrada[]>('/planejamento?data=' + formatISO(seg)),
           fetchJson<CardapioItem[]>('/cardapio'),
         ]);
+        const selecoesIniciais = buildSelecoes(entradasData);
+        rascunhoInicial = montarRascunho(selecoesIniciais);
+        dadosCarregados = true;
 
         if (!cancelled) {
           setEntradas(entradasData);
           setPratos(pratosData);
-          setSelecoes(buildSelecoes(entradasData));
+          setSelecoes(selecoesIniciais);
           setSucesso(false);
           setAvisos([]); // avisos são do save da semana corrente (D-18/D-19)
           setCarregando(false);
@@ -219,8 +266,8 @@ export default function Planejamento() {
       }
 
       // Projeção em paralelo — falha isolada, nunca derruba a grade (D-19)
-      if (!cancelled) {
-        void carregarProjecao(seg);
+      if (!cancelled && dadosCarregados) {
+        void carregarProjecao(seg, rascunhoInicial);
       }
     })();
 
@@ -359,6 +406,28 @@ export default function Planejamento() {
         Semana de {formatDiaMes(segunda)} a {formatDiaMes(domingo)}
       </p>
 
+      {carregandoProjecao && (
+        <p className="planejamento-projecao-status" role="status" aria-live="polite">
+          <span className="planejamento-projecao-spinner" aria-hidden="true" />
+          Atualizando a projeção…
+        </p>
+      )}
+
+      {!carregandoProjecao && erroProjecao && (
+        <p className="planejamento-projecao-status planejamento-projecao-status-erro" role="alert">
+          Não foi possível atualizar a projeção. O planejamento continua editável.
+          <button
+            type="button"
+            className="btn-secundario"
+            onClick={() => {
+              void carregarProjecao(segunda, montarRascunho(selecoes));
+            }}
+          >
+            Tentar novamente
+          </button>
+        </p>
+      )}
+
       {/* Estados */}
       {carregando && <p className="aviso">Carregando…</p>}
 
@@ -408,7 +477,7 @@ export default function Planejamento() {
                       const slotProjecao = diaProjecao
                         ? diaProjecao.slots.find((s) => s.slot === slot)
                         : undefined;
-                      const rupturasSlot = slotProjecao?.rupturas ?? [];
+                      const rupturasSlot = carregandoProjecao ? [] : slotProjecao?.rupturas ?? [];
 
                       return (
                         <td key={slot} className="planejamento-celula">
@@ -492,10 +561,14 @@ export default function Planejamento() {
             </div>
           )}
 
-          {/* Projeção da semana (D-19): painel colapsável, nunca bloqueia */}
+            {/* Projeção da semana (D-19): painel colapsável, nunca bloqueia */}
           <details className="painel-projecao" ref={painelRef}>
             <summary>Projeção da semana</summary>
-            {erroProjecao ? (
+            {carregandoProjecao ? (
+              <div className="painel-projecao-corpo">
+                <p className="painel-projecao-aviso">Atualizando a projeção com o rascunho atual…</p>
+              </div>
+            ) : erroProjecao ? (
               <div className="painel-projecao-corpo">
                 <p className="painel-projecao-aviso">
                   Não foi possível carregar a projeção.{' '}
@@ -503,7 +576,7 @@ export default function Planejamento() {
                     type="button"
                     className="btn-secundario"
                     onClick={() => {
-                      void carregarProjecao(segunda);
+                      void carregarProjecao(segunda, montarRascunho(selecoes));
                     }}
                   >
                     Tentar novamente

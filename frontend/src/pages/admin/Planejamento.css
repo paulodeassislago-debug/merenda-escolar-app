@@ -36,6 +36,47 @@
   font-size: 0.875rem;
 }
 
+/* Prévia reativa: informa o refetch sem bloquear a grade ou o salvamento. */
+.planejamento-projecao-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: -0.75rem 0 1rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+.planejamento-projecao-status-erro {
+  color: var(--erro);
+}
+
+.planejamento-projecao-status .btn-secundario {
+  margin-left: 0.25rem;
+}
+
+.planejamento-projecao-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  border: 2px solid var(--borda);
+  border-top-color: var(--verde-vivo);
+  border-radius: 50%;
+  animation: planejamento-projecao-girar 0.8s linear infinite;
+}
+
+@keyframes planejamento-projecao-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planejamento-projecao-spinner {
+    animation: none;
+  }
+}
+
 /* Container da grade (overflow horizontal controlado em telas estreitas —
    o banner/painel de projeção não participam da largura da grade) */
 .planejamento-grade-container {
