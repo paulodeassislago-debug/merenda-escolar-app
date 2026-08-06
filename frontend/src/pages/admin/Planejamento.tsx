@@ -271,7 +271,19 @@ export default function Planejamento() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (debounceProjecaoRef.current !== null) {
+        window.clearTimeout(debounceProjecaoRef.current);
+        debounceProjecaoRef.current = null;
+      }
+      geracaoProjecaoRef.current += 1;
+      abortProjecaoRef.current?.abort();
+      abortProjecaoRef.current = null;
+      projecaoRef.current = null;
+      setProjecao(null);
+      setCarregandoProjecao(false);
+    };
   }, [semanaRef, carregarProjecao]);
 
   /** Salva o planejamento (task 2): upsert por slot alterado, DELETE ao limpar. */
