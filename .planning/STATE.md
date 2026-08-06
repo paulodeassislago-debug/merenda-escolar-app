@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-12-PLAN.md (per-meal projection preview)
-last_updated: "2026-08-06T00:24:06.393Z"
+stopped_at: "Phase 08 shipped — PR #1"
+last_updated: "2026-08-06T01:11:41.607Z"
 last_activity: 2026-08-05 -- Phase 08 execution started
 progress:
   total_phases: 8
@@ -85,6 +85,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-08-06T00:24:06.384Z
-Stopped at: Completed 08-12-PLAN.md (per-meal projection preview)
-Resume file: .planning/phases/08-improvements/08-12-SUMMARY.md
+Last session: 2026-08-06T01:11:41.600Z
+Stopped at: Phase 08 shipped — PR #1
+Resume file: https://github.com/paulodeassislago-debug/merenda-escolar-app/pull/1
