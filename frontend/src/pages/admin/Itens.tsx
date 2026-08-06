@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, fetchJson } from '../../api';
 import type { Item, Conversao } from '../../types';
-import { LIMIAR_BAIXO_ESTOQUE, UNIDADES_SUGERIDAS } from './constants';
+import { UNIDADES_SUGERIDAS } from './constants';
 import './Itens.css';
 
-type ItemPayload = { nome: string; unidade_oficial: string; saldo_atual: number; unidade_interna?: string; fator_conversao?: number };
+type ItemPayload = { nome: string; unidade_oficial: string; saldo_atual: number; unidade_interna?: string; fator_conversao?: number; limiar: number };
 
 export default function Itens() {
   const [itens, setItens] = useState<Item[]>([]);
@@ -21,6 +21,7 @@ export default function Itens() {
   const [unidadeInterna, setUnidadeInterna] = useState('KG');
   const [fatorConversao, setFatorConversao] = useState('1');
   const [saldoAtual, setSaldoAtual] = useState('0');
+  const [limiar, setLimiar] = useState('5.0');
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
 
@@ -91,6 +92,7 @@ export default function Itens() {
     setUnidadeInterna('KG');
     setFatorConversao('1');
     setSaldoAtual('0');
+    setLimiar('5.0');
     setErroForm(null);
     setModalAberto(true);
   };
@@ -107,6 +109,7 @@ export default function Itens() {
         : item.saldo_atual / item.fator_conversao
       ).toString()
     );
+    setLimiar(item.limiar.toString());
     setErroForm(null);
     setModalAberto(true);
   };
@@ -119,6 +122,13 @@ export default function Itens() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErroForm(null);
+
+    const limiarNumero = Number(limiar);
+    if (!(limiarNumero > 0)) {
+      setErroForm('O limiar de baixo estoque deve ser maior que zero.');
+      return;
+    }
+
     setSalvando(true);
 
     try {
@@ -126,6 +136,7 @@ export default function Itens() {
         nome: nome.trim(),
         unidade_oficial: unidadeOficial,
         saldo_atual: Number(saldoAtual) || 0,
+        limiar: limiarNumero,
       };
 
       // Incluir conversão se unidade não for KG nem L
@@ -312,7 +323,7 @@ export default function Itens() {
                           (item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
                             ? item.saldo_atual
                             : item.saldo_atual / item.fator_conversao
-                          ) < LIMIAR_BAIXO_ESTOQUE
+                          ) < item.limiar
                             ? 'saldo-baixo'
                             : ''
                         }
@@ -326,7 +337,7 @@ export default function Itens() {
                         {(item.unidade_oficial === 'KG' || item.unidade_oficial === 'L'
                           ? item.saldo_atual
                           : item.saldo_atual / item.fator_conversao
-                        ) < LIMIAR_BAIXO_ESTOQUE ? (
+                        ) < item.limiar ? (
                           <span className="status-alerta">Baixo estoque</span>
                         ) : (
                           <span className="status-ok">OK</span>
@@ -469,6 +480,23 @@ export default function Itens() {
                     onChange={(e) => setSaldoAtual(e.target.value)}
                     className="form-input"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="item-limiar">Limiar de baixo estoque</label>
+                  <input
+                    id="item-limiar"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={limiar}
+                    onChange={(e) => setLimiar(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                  <span className="campo-ajuda">
+                    Alerta quando o saldo ficar abaixo deste valor, na unidade de exibição.
+                  </span>
                 </div>
 
                 {erroForm && (

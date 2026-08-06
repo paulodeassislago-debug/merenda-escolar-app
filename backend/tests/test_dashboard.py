@@ -17,7 +17,8 @@ def test_d1_secoes_presentes(client, admin_user, admin_token):
     assert "itens_criticos" in dados["estoque"]
 
     assert "refeicoes_hoje" in dados
-    assert len(dados["refeicoes_hoje"]) == 3
+    # obs #7: status por slot — 4 slots (Lanche da Manhã/Almoço/Lanche da Tarde/Janta)
+    assert len(dados["refeicoes_hoje"]) == 4
 
     assert "entregas" in dados
     assert "ultimos_7_dias" in dados["entregas"]
@@ -44,19 +45,38 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
         headers=_auth(admin_token),
     )
 
-    # Entrega de hoje
+    # Fornecedor e entrega de hoje
+    fornecedor = client.post(
+        "/fornecedores",
+        json={"nome": "Fornecedor Teste"},
+        headers=_auth(admin_token),
+    ).json()
     client.post(
         "/entregas",
-        json={"itens": [{"item_id": item["id"], "quantidade": 10, "acao": "recebido"}]},
+        json={
+            "origem": "xml",
+            "data_entrega": "2026-08-05",
+            "fornecedor_id": fornecedor["id"],
+            "nota_numero": "NF-TESTE",  # D-07: origem xml exige nota
+            "itens": [{"item_id": item["id"], "quantidade": 10, "acao": "recebido"}],
+        },
         headers=_auth(admin_token),
     )
 
-    # Refeição de hoje (almoço, 200 alunos, 2 kg de arroz)
+    # Config de alunos por período (08-07): Almoço = manha + tarde = 180
+    resp = client.put(
+        "/alunos-por-periodo",
+        json={"manha": 100, "tarde": 80, "noite": 40},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+
+    # Refeição de hoje (almoço, 2 kg de arroz; alunos derivados do slot)
     client.post(
         "/refeicoes",
         json={
-            "tipo_refeicao": "Almoço",
-            "qtd_alunos": 200,
+            "slot": "Almoço",
+            "nome_extra": "Lasanha",
             "itens": [{"item_id": item["id"], "quantidade": 2, "medida_caseira": "kg"}],
         },
         headers=_auth(cozinheira_token),
@@ -74,14 +94,16 @@ def test_d2_metricas_atualizadas(client, admin_user, admin_token, cozinheira_use
     assert dados["entregas"]["ultimos_30_dias"] == 1
     assert dados["entregas"]["ultima_data"] is not None
 
-    # Refeições hoje: almoço confirmado, demais pendentes
-    almoco = next(r for r in dados["refeicoes_hoje"] if r["tipo_refeicao"] == "Almoço")
+    # Refeições hoje: almoço confirmado no slot Almoço, demais pendentes
+    almoco = next(r for r in dados["refeicoes_hoje"] if r["slot"] == "Almoço")
     assert almoco["status"] == "confirmado"
-    assert almoco["alunos"] == 200
+    assert almoco["alunos"] == 180
+    # Lançamento avulso (sem planejamento_id) → ocupa o slot com EXTRA (obs #7)
+    assert almoco["extra"] is True
 
-    # Alunos hoje
-    assert dados["alunos_hoje"]["total"] == 200
-    assert dados["alunos_hoje"]["por_tipo"] == {"Almoço": 200}
+    # Alunos hoje (derivados da config: manha + tarde = 180)
+    assert dados["alunos_hoje"]["total"] == 180
+    assert dados["alunos_hoje"]["por_tipo"] == {"Almoço": 180}
 
 
 # D3 — Sem token → 401
@@ -93,3 +115,31 @@ def test_d3_sem_token(client):
 def test_d4_perfil_errado(client, secretaria_user, secretaria_token, cozinheira_user, cozinheira_token):
     assert client.get("/admin/dashboard", headers=_auth(secretaria_token)).status_code == 403
     assert client.get("/admin/dashboard", headers=_auth(cozinheira_token)).status_code == 403
+
+
+# D5 — Item com limiar individual alto → crítico mesmo com saldo > 5.0 (D-02/D-04)
+def test_d5_limiar_individual_critico(client, admin_user, admin_token):
+    client.post(
+        "/itens",
+        json={"nome": "Frango", "unidade_oficial": "KG", "saldo_atual": 50.0, "limiar": 100},
+        headers=_auth(admin_token),
+    )
+
+    dados = client.get("/admin/dashboard", headers=_auth(admin_token)).json()
+    assert dados["estoque"]["baixo_estoque"] == 1
+    critico = dados["estoque"]["itens_criticos"][0]
+    assert critico["nome"] == "Frango"
+    assert critico["limiar"] == 100
+
+
+# D6 — Item com limiar individual baixo → NÃO crítico com saldo 2 (unidade de exibição)
+def test_d6_limiar_individual_estavel(client, admin_user, admin_token):
+    client.post(
+        "/itens",
+        json={"nome": "Sal Marinho", "unidade_oficial": "KG", "saldo_atual": 2.0, "limiar": 0.5},
+        headers=_auth(admin_token),
+    )
+
+    dados = client.get("/admin/dashboard", headers=_auth(admin_token)).json()
+    assert dados["estoque"]["baixo_estoque"] == 0
+    assert all(c["nome"] != "Sal Marinho" for c in dados["estoque"]["itens_criticos"])

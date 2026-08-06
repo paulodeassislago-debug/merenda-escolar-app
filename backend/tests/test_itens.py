@@ -118,6 +118,102 @@ def test_4_8_nome_duplicado(client, admin_user, admin_token):
     assert client.post("/itens", json=payload, headers=_auth(admin_token)).status_code == 409
 
 
+# --- 4.9 — Limiar individual de baixo estoque (Fase 8, D-01..D-04) ---
+
+# 4.6 — POST /itens sem limiar → default 5.0 (IMP-01)
+def test_4_6_limiar_default(client, admin_user, admin_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Arroz Default", "unidade_oficial": "KG", "saldo_atual": 50.0},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["limiar"] == 5.0
+
+
+# 4.7 — POST /itens com limiar zero ou negativo → 400 (D-03)
+def test_4_7_limiar_invalido_400(client, admin_user, admin_token):
+    resp_zero = client.post(
+        "/itens",
+        json={"nome": "Item Limiar Zero", "unidade_oficial": "KG", "saldo_atual": 10.0, "limiar": 0},
+        headers=_auth(admin_token),
+    )
+    assert resp_zero.status_code == 400
+    assert "limiar" in resp_zero.json()["detail"].lower()
+
+    resp_neg = client.post(
+        "/itens",
+        json={"nome": "Item Limiar Negativo", "unidade_oficial": "KG", "saldo_atual": 10.0, "limiar": -1},
+        headers=_auth(admin_token),
+    )
+    assert resp_neg.status_code == 400
+    assert "limiar" in resp_neg.json()["detail"].lower()
+
+
+# 4.8 — PUT /itens/{id} atualiza limiar → GET confirma (D-04)
+def test_4_8_limiar_atualizado(client, admin_user, admin_token):
+    criado = client.post(
+        "/itens",
+        json={"nome": "Arroz Limiar", "unidade_oficial": "KG", "saldo_atual": 50.0},
+        headers=_auth(admin_token),
+    ).json()
+
+    resp = client.put(
+        f"/itens/{criado['id']}",
+        json={"limiar": 2.5},
+        headers=_auth(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["limiar"] == 2.5
+
+    lista = client.get("/itens", headers=_auth(admin_token)).json()
+    alvo = next(i for i in lista if i["id"] == criado["id"])
+    assert alvo["limiar"] == 2.5
+
+
+# --- 4.9 — POST /itens/inline (fluxo de Entregas; D-13) ---
+
+# 4.9 — Secretaria cria item pelo fluxo inline → 200, limiar default 5.0, listado no GET /itens
+def test_4_9_inline_secretaria_cria_item(
+    client, admin_user, admin_token, secretaria_user, secretaria_token
+):
+    resp = client.post(
+        "/itens/inline",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(secretaria_token),
+    )
+    assert resp.status_code == 200
+    dados = resp.json()
+    assert dados["nome"] == "Carne Moída"
+    assert dados["unidade_oficial"] == "KG"
+    assert dados["limiar"] == 5.0
+    assert dados["saldo_atual"] == 0.0
+
+    lista = client.get("/itens", headers=_auth(admin_token)).json()
+    alvo = next(i for i in lista if i["nome"] == "Carne Moída")
+    assert alvo["limiar"] == 5.0
+
+
+# 4.10 — Cozinheira não pode usar POST /itens/inline → 403
+def test_4_10_inline_cozinheira_negado(client, cozinheira_user, cozinheira_token):
+    resp = client.post(
+        "/itens/inline",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(cozinheira_token),
+    )
+    assert resp.status_code == 403
+
+
+# 4.11 — POST /itens (fora do fluxo) permanece admin-only → secretaria 403 (D-13)
+def test_4_11_itens_continua_admin_only(client, secretaria_user, secretaria_token):
+    resp = client.post(
+        "/itens",
+        json={"nome": "Carne Moída", "unidade_oficial": "KG"},
+        headers=_auth(secretaria_token),
+    )
+    assert resp.status_code == 403
+
+
 # --- 5.7.1 — Unidades livres com conversão interna ---
 
 # A9-1: Criar item com unidade livre + conversão

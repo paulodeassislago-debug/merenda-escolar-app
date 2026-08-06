@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -8,11 +8,33 @@ from sqlalchemy.orm import Session
 import auth
 import models
 import schemas
-from config import CORS_ORIGINS
+from config import CORS_ORIGINS, DATABASE_URL
 from database import engine, SessionLocal
+from migracao import migrar
 
-# Cria o banco e as tabelas automaticamente se não existirem
-models.Base.metadata.create_all(bind=engine)
+
+def _inicializar_banco() -> None:
+    """Inicializa o schema conforme o ambiente:
+
+    - SQLite (dev/UAT): `create_all` + `migracao.py` (padrão histórico).
+    - PostgreSQL (produção): migrações versionadas do Alembic (`upgrade head`),
+      idempotente e seguro para rodar a cada startup do container.
+    """
+    if DATABASE_URL.startswith("sqlite"):
+        models.Base.metadata.create_all(bind=engine)
+        migrar(engine)
+        return
+
+    from alembic import command
+    from alembic.config import Config
+    from pathlib import Path
+
+    ini_path = Path(__file__).resolve().parent / "alembic.ini"
+    cfg = Config(str(ini_path))
+    command.upgrade(cfg, "head")
+
+
+_inicializar_banco()
 
 app = FastAPI(title="Sistema de Gestão da Cozinha Escolar - PNAE")
 
@@ -40,9 +62,6 @@ UNIDADES_OFICIAIS_INTERNAS = {"KG", "L"}
 TIPOS_REFEICAO_VALIDOS = ["Lanche", "Almoço", "Janta"]
 SLOTS_PLANEJAMENTO = ["Lanche da Manhã", "Almoço", "Lanche da Tarde", "Janta"]
 ACOES_ENTREGA_VALIDAS = ["recebido", "alterado", "excluído"]
-
-# Saldo abaixo deste valor (na unidade oficial) é considerado baixo estoque
-LIMIAR_BAIXO_ESTOQUE = 5.0
 
 
 # --- ROTAS DA API ---
@@ -172,17 +191,17 @@ def listar_itens(
             "saldo_atual": item.saldo_atual,
             "unidade_interna": item.unidade_interna,
             "fator_conversao": item.fator_conversao,
+            "limiar": item.limiar,
         }
         for item in itens
     ]
 
 
-@app.post("/itens")
-def criar_item(
-    dados: schemas.ItemCreate,
-    db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
-):
+def _criar_item_no_banco(db: Session, dados: schemas.ItemCreate) -> models.Item:
+    """Valida e persiste um novo item — compartilhado por /itens e /itens/inline (D-13).
+
+    Mesmas regras: unidade livre exige conversão, limiar > 0 (default 5.0), nome único.
+    """
     unidade_normalizada = dados.unidade_oficial.strip().upper()
 
     # Validação condicional: se unidade não for KG ou L, exige conversão
@@ -198,6 +217,10 @@ def criar_item(
                 detail=f"unidade_interna deve ser 'KG' ou 'L', recebido: '{dados.unidade_interna}'",
             )
 
+    # Limiar individual de baixo estoque (D-03): ausente usa default 5.0; zero/negativo → 400
+    if dados.limiar is not None and dados.limiar <= 0:
+        raise HTTPException(status_code=400, detail="limiar deve ser maior que zero")
+
     existente = db.query(models.Item).filter(models.Item.nome == dados.nome).first()
     if existente:
         raise HTTPException(status_code=409, detail=f"Já existe um item com o nome '{dados.nome}'")
@@ -208,18 +231,47 @@ def criar_item(
         saldo_atual=dados.saldo_atual * (dados.fator_conversao or 1.0),
         unidade_interna=dados.unidade_interna or "KG",
         fator_conversao=dados.fator_conversao or 1.0,
+        limiar=dados.limiar,
     )
     db.add(novo)
     db.commit()
     db.refresh(novo)
+    return novo
+
+
+def _serializar_item(item: models.Item) -> dict:
     return {
-        "id": novo.id,
-        "nome": novo.nome,
-        "unidade_oficial": novo.unidade_oficial,
-        "saldo_atual": novo.saldo_atual,
-        "unidade_interna": novo.unidade_interna,
-        "fator_conversao": novo.fator_conversao,
+        "id": item.id,
+        "nome": item.nome,
+        "unidade_oficial": item.unidade_oficial,
+        "saldo_atual": item.saldo_atual,
+        "unidade_interna": item.unidade_interna,
+        "fator_conversao": item.fator_conversao,
+        "limiar": item.limiar,
     }
+
+
+@app.post("/itens")
+def criar_item(
+    dados: schemas.ItemCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
+):
+    return _serializar_item(_criar_item_no_banco(db, dados))
+
+
+@app.post("/itens/inline")
+def criar_item_inline(
+    dados: schemas.ItemCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    """Cria item dentro do fluxo de Entregas (D-13): admin e secretaria.
+
+    Mesmas validações de POST /itens; fora do fluxo de Entregas o cadastro
+    permanece admin-only (POST /itens inalterado).
+    """
+    return _serializar_item(_criar_item_no_banco(db, dados))
 
 
 @app.put("/itens/{item_id}")
@@ -232,6 +284,10 @@ def atualizar_item(
     item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
+
+    # Limiar individual de baixo estoque (D-03): ausente (None) mantém o atual; zero/negativo → 400
+    if dados.limiar is not None and dados.limiar <= 0:
+        raise HTTPException(status_code=400, detail="limiar deve ser maior que zero")
 
     if dados.nome is not None:
         duplicado = db.query(models.Item).filter(
@@ -269,6 +325,9 @@ def atualizar_item(
     if dados.saldo_atual is not None:
         item.saldo_atual = dados.saldo_atual * item.fator_conversao
 
+    if dados.limiar is not None:
+        item.limiar = dados.limiar
+
     db.commit()
     db.refresh(item)
     return {
@@ -278,6 +337,7 @@ def atualizar_item(
         "saldo_atual": item.saldo_atual,
         "unidade_interna": item.unidade_interna,
         "fator_conversao": item.fator_conversao,
+        "limiar": item.limiar,
     }
 
 
@@ -367,6 +427,39 @@ def excluir_conversao(
     db.delete(conv)
     db.commit()
     return {"mensagem": "Conversão excluída com sucesso!"}
+
+
+# --- FORNECEDORES (GET/POST admin+secretaria — D-06/D-08) ---
+
+@app.get("/fornecedores")
+def listar_fornecedores(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    fornecedores = db.query(models.Fornecedor).order_by(models.Fornecedor.nome).all()
+    return [
+        {"id": f.id, "nome": f.nome, "cnpj": f.cnpj}
+        for f in fornecedores
+    ]
+
+
+@app.post("/fornecedores")
+def criar_fornecedor(
+    dados: schemas.FornecedorCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    if not dados.nome or not dados.nome.strip():
+        raise HTTPException(status_code=400, detail="Nome do fornecedor é obrigatório")
+
+    novo = models.Fornecedor(
+        nome=dados.nome.strip(),
+        cnpj=dados.cnpj.strip() if dados.cnpj else None,
+    )
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+    return {"id": novo.id, "nome": novo.nome, "cnpj": novo.cnpj}
 
 
 # --- CARDÁPIO (GET admin+sec; CRUD somente admin) ---
@@ -596,6 +689,213 @@ def _serializar_planejamento(db: Session, entrada: models.Planejamento) -> dict:
     }
 
 
+# --- PROJEÇÃO CUMULATIVA DE ESTOQUE (D-17/D-18/D-20) ---
+
+def _consumo_slot(
+    db: Session,
+    cardapio_item_id: int,
+    total_alunos: int | None,
+) -> tuple[dict[int, float], set[int]] | None:
+    """Consumo por item (unidade oficial kg/L) do slot planejado: ∑(receita × alunos).
+
+    `total_alunos` vem de `_total_por_slot`; None (config ausente) → retorna None,
+    sem levantar, para a projeção responder `configurado: false`.
+    Itens sem conversão cadastrada são marcados não avaliáveis (D-17) — não lança 400.
+    """
+    if total_alunos is None:
+        return None
+    receitas = db.query(models.Receita).filter(
+        models.Receita.cardapio_item_id == cardapio_item_id
+    ).all()
+    consumo: dict[int, float] = {}
+    nao_avaliaveis: set[int] = set()
+    for r in receitas:
+        item = db.query(models.Item).filter(models.Item.id == r.item_id).first()
+        if not item:
+            continue
+        try:
+            qtd_oficial = _converter_para_unidade_oficial(
+                db, item, r.quantidade * total_alunos, r.medida_caseira
+            )
+        except HTTPException:
+            nao_avaliaveis.add(r.item_id)
+            continue
+        consumo[r.item_id] = consumo.get(r.item_id, 0.0) + qtd_oficial
+    return consumo, nao_avaliaveis
+
+
+def _parse_rascunho(db: Session, rascunho: list[str] | None) -> dict[tuple[int, str], int]:
+    """Pré-visualização (obs #4/D-18): sobreposições `(dia, slot) -> cardapio_item_id`.
+
+    Formato de cada entrada: `"{dia}|{slot}|{cardapio_item_id}"`. Entradas
+    malformadas, com slot inválido ou prato inexistente são IGNORADAS (T-08-14:
+    pré-visualização nunca bloqueia, nunca persiste). Slot sem entrada de rascunho
+    permanece com o planejamento vigente.
+    """
+    if not rascunho:
+        return {}
+    ids_pratos = {cid for (cid,) in db.query(models.CardapioItem.id).all()}
+    mapa: dict[tuple[int, str], int] = {}
+    for entrada in rascunho:
+        partes = entrada.split("|")
+        if len(partes) != 3:
+            continue
+        dia_s, slot, item_s = partes
+        try:
+            dia = int(dia_s)
+            cardapio_item_id = int(item_s)
+        except ValueError:
+            continue
+        if dia < 0 or dia > 6 or slot not in SLOTS_PLANEJAMENTO:
+            continue
+        if cardapio_item_id not in ids_pratos:
+            continue
+        mapa[(dia, slot)] = cardapio_item_id
+    return mapa
+
+
+def _simular_semana(
+    db: Session,
+    segunda: date,
+    ate_dia: int | None = None,
+    referencia: date | None = None,
+    rascunho: list[str] | None = None,
+) -> dict:
+    """Simulação cumulativa da semana (D-17): segunda (0) → domingo (6), slots na
+    ordem de `SLOTS_PLANEJAMENTO`. `ate_dia` limita a simulação (avisos do POST).
+
+    Ruptura é granular por SLOT (obs #5): cada dia responde `slots[].rupturas`
+    para cada ingrediente cujo consumo daquele slot excede o saldo disponível
+    antes do próprio slot. `rascunho` sobrepõe o planejado para pré-visualização
+    sem salvar (obs #4).
+
+    Config de alunos ausente → `configurado: false` com tudo zerado (não levanta).
+    """
+    try:
+        _valores_alunos_por_periodo(db)
+    except HTTPException:
+        return {
+            "configurado": False,
+            "dias": [],
+            "itens": [],
+            "resumo": {"itens_com_ruptura": 0, "itens_nao_avaliaveis": 0},
+        }
+
+    data_referencia = referencia or (segunda + timedelta(days=ate_dia if ate_dia is not None else 6))
+    ativos = _planejamento_ativo(db, data_referencia)
+    rascunho_map = _parse_rascunho(db, rascunho)
+    itens_catalogo = db.query(models.Item).order_by(models.Item.id).all()
+    saldo_corrente = {i.id: i.saldo_atual for i in itens_catalogo}
+    consumo_semana: dict[int, float] = {i.id: 0.0 for i in itens_catalogo}
+    primeiro_dia_ruptura: dict[int, int | None] = {i.id: None for i in itens_catalogo}
+    nao_avaliaveis: set[int] = set()
+    dias: list[dict] = []
+
+    for dia in range(ate_dia + 1 if ate_dia is not None else 7):
+        slots_dia: list[dict] = []
+        for slot in SLOTS_PLANEJAMENTO:
+            cardapio_item_id = rascunho_map.get((dia, slot))
+            if cardapio_item_id is None:
+                entrada = ativos.get((dia, slot))
+                if not entrada:
+                    continue
+                cardapio_item_id = entrada.cardapio_item_id
+            total_alunos = _total_por_slot(db, slot)
+            resultado = _consumo_slot(db, cardapio_item_id, total_alunos)
+            if resultado is None:
+                continue
+            consumo, nao_av = resultado
+            nao_avaliaveis.update(nao_av)
+            rupturas_slot: list[dict] = []
+            for item_id, qtd in consumo.items():
+                saldo_antes_do_slot = saldo_corrente[item_id]
+                consumo_semana[item_id] += qtd
+                saldo_corrente[item_id] -= qtd
+                if saldo_corrente[item_id] < 0 and primeiro_dia_ruptura[item_id] is None:
+                    primeiro_dia_ruptura[item_id] = dia
+                # Cada slot responde pela própria falta. O saldo anterior pode
+                # estar negativo por consumo anterior, mas nunca reduzimos a
+                # falta atribuível ao slot abaixo de zero.
+                faltando = max(0.0, qtd - max(saldo_antes_do_slot, 0.0))
+                if faltando > 0:
+                    item = next(i for i in itens_catalogo if i.id == item_id)
+                    rupturas_slot.append({
+                        "item_id": item_id,
+                        "nome": item.nome,
+                        "faltando": faltando,
+                        "unidade_oficial": item.unidade_oficial,
+                    })
+            slots_dia.append({"slot": slot, "rupturas": rupturas_slot})
+        if slots_dia:
+            dias.append({
+                "dia": (segunda + timedelta(days=dia)).isoformat(),
+                "dia_semana": dia,
+                "slots": slots_dia,
+            })
+
+    itens = []
+    for i in itens_catalogo:
+        if i.id in nao_avaliaveis:
+            itens.append({
+                "item_id": i.id,
+                "nome": i.nome,
+                "unidade_oficial": i.unidade_oficial,
+                "saldo_atual": i.saldo_atual,
+                "consumo_semana": None,
+                "saldo_projetado": None,
+                "primeiro_dia_ruptura": None,
+                "avaliavel": False,
+            })
+        else:
+            itens.append({
+                "item_id": i.id,
+                "nome": i.nome,
+                "unidade_oficial": i.unidade_oficial,
+                "saldo_atual": i.saldo_atual,
+                "consumo_semana": consumo_semana[i.id],
+                "saldo_projetado": saldo_corrente[i.id],
+                "primeiro_dia_ruptura": primeiro_dia_ruptura[i.id],
+                "avaliavel": True,
+            })
+
+    itens_com_ruptura = sum(
+        1 for i in itens_catalogo
+        if i.id not in nao_avaliaveis and saldo_corrente[i.id] < 0
+    )
+    return {
+        "configurado": True,
+        "dias": dias,
+        "itens": itens,
+        "resumo": {
+            "itens_com_ruptura": itens_com_ruptura,
+            "itens_nao_avaliaveis": len(nao_avaliaveis),
+        },
+    }
+
+
+def _calcular_avisos(db: Session, entrada: models.Planejamento) -> list[dict]:
+    """Avisos não-bloqueantes da refeição salva (D-18): itens com saldo projetado
+    negativo, simulando o consumo acumulado de segunda até o dia_semana salvo.
+    Sem config de alunos → [] (nunca bloqueia)."""
+    segunda = entrada.data_inicio_vigencia - timedelta(days=entrada.data_inicio_vigencia.weekday())
+    simulacao = _simular_semana(
+        db, segunda,
+        ate_dia=entrada.dia_semana,
+        referencia=entrada.data_inicio_vigencia,
+    )
+    if not simulacao["configurado"]:
+        return []
+    avisos = []
+    for info in simulacao["itens"]:
+        if info["avaliavel"] and info["saldo_projetado"] is not None and info["saldo_projetado"] < 0:
+            avisos.append({
+                "item_id": info["item_id"],
+                "nome": info["nome"],
+                "faltando": -info["saldo_projetado"],
+            })
+    return avisos
+
+
 @app.get("/planejamento")
 def consultar_planejamento(
     data: date | None = None,
@@ -611,13 +911,38 @@ def consultar_planejamento(
     ]
 
 
+@app.get("/planejamento/projecao")
+def projecao_planejamento(
+    data: date | None = None,
+    rascunho: list[str] | None = Query(None),
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
+):
+    """Projeção cumulativa de estoque da semana (D-17/D-20 — cozinheira não vê).
+
+    Simula dia a dia (segunda→domingo, slots em ordem) o saldo corrente por item.
+    `rascunho` (obs #4/D-18) sobrepõe slots para pré-visualização sem salvar:
+    entradas malformadas/inexistentes são ignoradas (T-08-14) — nunca persiste.
+    Contrato consumido pela 08-09: configurado/dias/itens/resumo; dias[].slots[].rupturas.
+    """
+    data_ref = data or date.today()
+    segunda = data_ref - timedelta(days=data_ref.weekday())
+    simulacao = _simular_semana(db, segunda, referencia=data_ref, rascunho=rascunho)
+    simulacao["data_ref"] = data_ref.isoformat()
+    return simulacao
+
+
 @app.post("/planejamento")
 def definir_planejamento(
     dados: schemas.PlanejamentoCreate,
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria")),
 ):
-    """Define (ou altera) o prato de um slot dia_semana × tipo_refeicao a partir de uma vigência."""
+    """Define (ou altera) o prato de um slot dia_semana × tipo_refeicao a partir de uma vigência.
+
+    Não bloqueia por falta de estoque (D-18): a resposta é aditiva e traz `avisos`
+    com os itens que faltarão segundo a simulação cumulativa até o dia salvo.
+    """
     if dados.dia_semana < 0 or dados.dia_semana > 6:
         raise HTTPException(status_code=400, detail="dia_semana deve estar entre 0 (segunda) e 6 (domingo)")
     if dados.tipo_refeicao not in SLOTS_PLANEJAMENTO:
@@ -643,18 +968,20 @@ def definir_planejamento(
         existente.cardapio_item_id = dados.cardapio_item_id
         db.commit()
         db.refresh(existente)
-        return _serializar_planejamento(db, existente)
+        entrada = existente
+    else:
+        novo = models.Planejamento(
+            cardapio_item_id=dados.cardapio_item_id,
+            tipo_refeicao=dados.tipo_refeicao,
+            dia_semana=dados.dia_semana,
+            data_inicio_vigencia=dados.data_inicio_vigencia,
+        )
+        db.add(novo)
+        db.commit()
+        db.refresh(novo)
+        entrada = novo
 
-    novo = models.Planejamento(
-        cardapio_item_id=dados.cardapio_item_id,
-        tipo_refeicao=dados.tipo_refeicao,
-        dia_semana=dados.dia_semana,
-        data_inicio_vigencia=dados.data_inicio_vigencia,
-    )
-    db.add(novo)
-    db.commit()
-    db.refresh(novo)
-    return _serializar_planejamento(db, novo)
+    return {**_serializar_planejamento(db, entrada), "avisos": _calcular_avisos(db, entrada)}
 
 
 @app.delete("/planejamento/{planejamento_id}")
@@ -755,6 +1082,35 @@ def registrar_entrega(
     - `excluído`: não altera o saldo, justificativa obrigatória
     """
     # 1. Validar tudo antes de gravar qualquer coisa
+    # Regras por origem (D-07): manual = observações + só recebido; xml = nota + justificativa
+    if dados.origem not in ("xml", "manual"):
+        raise HTTPException(status_code=400, detail="origem deve ser 'xml' ou 'manual'")
+
+    fornecedor = db.query(models.Fornecedor).filter(
+        models.Fornecedor.id == dados.fornecedor_id
+    ).first()
+    if not fornecedor:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fornecedor com id {dados.fornecedor_id} não encontrado",
+        )
+
+    if dados.origem == "manual":
+        if not dados.observacoes or not dados.observacoes.strip():
+            raise HTTPException(status_code=400, detail="Entregas manuais exigem observações")
+        for item_req in dados.itens:
+            if item_req.acao != "recebido":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Entregas manuais registram apenas ação 'recebido' (item {item_req.item_id})",
+                )
+    elif dados.origem == "xml":
+        if not dados.nota_numero or not dados.nota_numero.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Entregas XML exigem o número da nota (nota_numero)",
+            )
+
     conversoes_pendentes: dict[tuple[int, str], tuple[str, float]] = {}
     fatores_resolvidos: list[tuple[str, float]] = []
     for item_req in dados.itens:
@@ -763,7 +1119,12 @@ def registrar_entrega(
                 status_code=400,
                 detail=f"Ação inválida: '{item_req.acao}'. Use: {', '.join(ACOES_ENTREGA_VALIDAS)}",
             )
-        if item_req.acao in ("alterado", "excluído") and not item_req.justificativa:
+        # Justificativa por item é exigida apenas para entregas XML (origem manual só recebe 'recebido')
+        if (
+            dados.origem == "xml"
+            and item_req.acao in ("alterado", "excluído")
+            and not item_req.justificativa
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=f"Item {item_req.item_id}: ação '{item_req.acao}' exige justificativa",
@@ -790,7 +1151,14 @@ def registrar_entrega(
     for (item_id, _), (unidade, fator) in conversoes_pendentes.items():
         _upsert_conversao(db, item_id, unidade, fator)
 
-    entrega = models.Entrega(id_usuario=usuario.id)
+    entrega = models.Entrega(
+        id_usuario=usuario.id,
+        origem=dados.origem,
+        data_entrega=dados.data_entrega,
+        fornecedor_id=dados.fornecedor_id,
+        nota_numero=dados.nota_numero,
+        observacoes=dados.observacoes,
+    )
     db.add(entrega)
     db.flush()  # garante o id antes de gravar os itens
 
@@ -804,7 +1172,8 @@ def registrar_entrega(
             quantidade=item_req.quantidade,
             unidade=unidade,
             fator_conversao=fator,
-            justificativa=item_req.justificativa,
+            # D-07: origem manual não grava justificativa por item (campo sempre None)
+            justificativa=None if dados.origem == "manual" else item_req.justificativa,
             acao=item_req.acao,
         ))
 
@@ -821,17 +1190,35 @@ def listar_entregas(
 ):
     query = db.query(models.Entrega)
     if data:
-        query = query.filter(func.date(models.Entrega.data_hora) == data.isoformat())
+        # WR-03: filtra pela data de ENTREGA (D-05/D-09 — a data que a secretaria/gestão
+        # enxerga), com fallback para a data de registro em entregas legadas sem data_entrega
+        # (D-10). func.date() normaliza data_hora (datetime) e data_entrega (date) para o dia.
+        query = query.filter(
+            func.date(func.coalesce(models.Entrega.data_entrega, models.Entrega.data_hora)) == data.isoformat()
+        )
     entregas = query.order_by(models.Entrega.id.desc()).all()
-    return [
-        {
+    resultado = []
+    for e in entregas:
+        fornecedor = db.query(models.Fornecedor).filter(
+            models.Fornecedor.id == e.fornecedor_id
+        ).first() if e.fornecedor_id else None
+        registrador = db.query(models.Usuario).filter(
+            models.Usuario.id == e.id_usuario
+        ).first()
+        resultado.append({
             "id": e.id,
             "data_hora": e.data_hora.isoformat(),
             "id_usuario": e.id_usuario,
+            "id_usuario_nome": registrador.nome if registrador else None,
+            "origem": e.origem,
+            "data_entrega": e.data_entrega.isoformat() if e.data_entrega else None,
+            "fornecedor_id": e.fornecedor_id,
+            "fornecedor_nome": fornecedor.nome if fornecedor else None,
+            "nota_numero": e.nota_numero,
+            "observacoes": e.observacoes,
             "qtd_itens": db.query(models.ItemEntrega).filter(models.ItemEntrega.entrega_id == e.id).count(),
-        }
-        for e in entregas
-    ]
+        })
+    return resultado
 
 
 @app.get("/entregas/{entrega_id}")
@@ -845,10 +1232,23 @@ def detalhar_entrega(
         raise HTTPException(status_code=404, detail="Entrega não encontrada")
 
     itens = db.query(models.ItemEntrega).filter(models.ItemEntrega.entrega_id == entrega_id).all()
+    fornecedor = db.query(models.Fornecedor).filter(
+        models.Fornecedor.id == entrega.fornecedor_id
+    ).first() if entrega.fornecedor_id else None
+    registrador = db.query(models.Usuario).filter(
+        models.Usuario.id == entrega.id_usuario
+    ).first()
     return {
         "id": entrega.id,
         "data_hora": entrega.data_hora.isoformat(),
         "id_usuario": entrega.id_usuario,
+        "id_usuario_nome": registrador.nome if registrador else None,
+        "origem": entrega.origem,
+        "data_entrega": entrega.data_entrega.isoformat() if entrega.data_entrega else None,
+        "fornecedor_id": entrega.fornecedor_id,
+        "fornecedor_nome": fornecedor.nome if fornecedor else None,
+        "nota_numero": entrega.nota_numero,
+        "observacoes": entrega.observacoes,
         "itens": [
             {
                 "id": ie.id,
@@ -863,6 +1263,102 @@ def detalhar_entrega(
             }
             for ie in itens
         ],
+    }
+
+
+# --- ALUNOS POR PERÍODO (configuração admin-only; leitura admin+sec+cozinheira) ---
+# D-14: admin configura 3 grupos (manha/tarde/noite); cozinheira não edita.
+# D-15: o total de cada slot é derivado dos períodos.
+
+def _valores_alunos_por_periodo(db: Session) -> dict[str, int]:
+    """Lê as 3 linhas da configuração; lança HTTPException se alguma faltar."""
+    linhas = db.query(models.AlunosPorPeriodo).all()
+    valores = {linha.periodo: linha.qtd for linha in linhas}
+    if not {"manha", "tarde", "noite"}.issubset(valores):
+        raise HTTPException(
+            status_code=400,
+            detail="Configure os alunos por período antes de lançar a refeição",
+        )
+    return valores
+
+
+def _total_por_slot(db: Session, slot: str) -> int:
+    """Total de alunos do slot (D-15): Lanche da Manhã=manha, Almoço=manha+tarde,
+    Lanche da Tarde=tarde, Janta=noite. 400 se o slot for inválido ou a config faltar."""
+    if slot not in SLOTS_PLANEJAMENTO:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Slot de refeição inválido. Use: {', '.join(SLOTS_PLANEJAMENTO)}",
+        )
+    valores = _valores_alunos_por_periodo(db)
+    if slot == "Lanche da Manhã":
+        return valores["manha"]
+    if slot == "Almoço":
+        return valores["manha"] + valores["tarde"]
+    if slot == "Lanche da Tarde":
+        return valores["tarde"]
+    return valores["noite"]  # Janta
+
+
+def _derivar_tipo_slot(slot: str) -> str:
+    """Espelho de `tipoParaLancamento` do frontend: os dois lanches viram 'Lanche'."""
+    if slot in ("Lanche da Manhã", "Lanche da Tarde"):
+        return "Lanche"
+    return slot
+
+
+@app.get("/alunos-por-periodo")
+def consultar_alunos_por_periodo(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin", "secretaria", "cozinheira")),
+):
+    linhas = db.query(models.AlunosPorPeriodo).all()
+    valores = {linha.periodo: linha for linha in linhas}
+    if not {"manha", "tarde", "noite"}.issubset(valores):
+        raise HTTPException(
+            status_code=404,
+            detail="Configuração de alunos por período ainda não definida",
+        )
+    mais_recente = max(linhas, key=lambda l: l.updated_at or datetime.min)
+    return {
+        "manha": valores["manha"].qtd,
+        "tarde": valores["tarde"].qtd,
+        "noite": valores["noite"].qtd,
+        "updated_at": mais_recente.updated_at.isoformat() if mais_recente.updated_at else None,
+        "updated_by": mais_recente.updated_by,
+    }
+
+
+@app.put("/alunos-por-periodo")
+def configurar_alunos_por_periodo(
+    dados: schemas.AlunosPorPeriodoUpdate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(auth.require_perfil("admin")),
+):
+    """Upsert das 3 linhas de configuração com auditoria (updated_at/updated_by)."""
+    agora = datetime.now()
+    for periodo, qtd in (("manha", dados.manha), ("tarde", dados.tarde), ("noite", dados.noite)):
+        linha = db.query(models.AlunosPorPeriodo).filter(
+            models.AlunosPorPeriodo.periodo == periodo
+        ).first()
+        if linha:
+            linha.qtd = qtd
+            linha.updated_at = agora
+            linha.updated_by = usuario.id
+        else:
+            db.add(models.AlunosPorPeriodo(
+                periodo=periodo,
+                qtd=qtd,
+                updated_at=agora,
+                updated_by=usuario.id,
+            ))
+    db.commit()
+    return {
+        "manha": dados.manha,
+        "tarde": dados.tarde,
+        "noite": dados.noite,
+        "updated_at": agora.isoformat(),
+        "updated_by": usuario.id,
     }
 
 
@@ -900,15 +1396,33 @@ def lancar_refeicao_v2(
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(auth.require_perfil("cozinheira")),
 ):
-    """Lança uma refeição: converte medidas caseiras, deduz o estoque e audita ajustes.
+    """Lança uma refeição a partir do slot (D-16b): o backend deriva o tipo e o
+    total de alunos da configuração vigente — a cozinheira não envia qtd_alunos.
 
-    Se `planejamento_id` for informado, a receita é escalada pelo número de alunos.
-    Quantidades divergentes da receita escalada (ou itens fora da receita) exigem justificativa.
+    Converte medidas caseiras, deduz o estoque (bloqueia se insuficiente) e audita
+    ajustes divergentes da receita escalada (justificativa obrigatória).
     """
-    if dados.tipo_refeicao not in TIPOS_REFEICAO_VALIDOS:
+    tipo = _derivar_tipo_slot(dados.slot)
+    if tipo not in TIPOS_REFEICAO_VALIDOS:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipo de refeição inválido. Use: {', '.join(TIPOS_REFEICAO_VALIDOS)}",
+            detail=f"Slot de refeição inválido. Use: {', '.join(SLOTS_PLANEJAMENTO)}",
+        )
+    qtd_alunos = _total_por_slot(db, dados.slot)
+
+    # 08-11: nome da refeição extraordinária (T-08-17) — obrigatório em avulsas
+    # (planejamento_id None), rejeitado em planejadas (nunca substitui o prato
+    # planejado). Só espaços conta como ausente.
+    if dados.planejamento_id is None:
+        if not dados.nome_extra or not dados.nome_extra.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Informe o nome da refeição no lançamento avulso",
+            )
+    elif dados.nome_extra and dados.nome_extra.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Refeições planejadas não aceitam nome extra: use o prato do planejamento",
         )
 
     # Receita de referência (quando ligada a um planejamento)
@@ -943,35 +1457,58 @@ def lancar_refeicao_v2(
             )
 
         # Auditoria: a receita-base é por aluno; divergência da receita escalada exige justificativa.
+        # WR-02: a comparação é SEMPRE na unidade oficial (kg/L) — a quantidade esperada da
+        # receita (medida caseira) é convertida com a mesma tabela de conversões do envio, e o
+        # registro de auditoria guarda o esperado expresso na medida enviada (sem misturar unidades).
         receita_item = receita_map.get(item_req.item_id)
-        quantidade_esperada = receita_item.quantidade * dados.qtd_alunos if receita_item else None
+        quantidade_esperada = receita_item.quantidade * qtd_alunos if receita_item else None
+        quantidade_original = item_req.quantidade
         if dados.planejamento_id is not None:
-            divergente = receita_item is None or abs(quantidade_esperada - item_req.quantidade) > 1e-9
+            divergente = receita_item is None
+            if receita_item is not None:
+                try:
+                    esperada_oficial = _converter_para_unidade_oficial(
+                        db, item, quantidade_esperada, receita_item.medida_caseira
+                    )
+                except HTTPException:
+                    # Medida da receita sem conversão cadastrada: mantém a comparação crua
+                    # histórica (a cozinha normalmente envia na medida da receita).
+                    divergente = abs(quantidade_esperada - item_req.quantidade) > 1e-9
+                    quantidade_original = quantidade_esperada
+                else:
+                    divergente = abs(esperada_oficial - qtd_oficial) > 1e-9
+                    fator_enviado = _converter_para_unidade_oficial(
+                        db, item, 1.0, item_req.medida_caseira
+                    )
+                    if fator_enviado:
+                        quantidade_original = esperada_oficial / fator_enviado
             if divergente and not item_req.justificativa:
                 motivo = "não faz parte da receita planejada" if receita_item is None else \
-                    f"quantidade diverge da receita planejada ({quantidade_esperada} {receita_item.medida_caseira} para {dados.qtd_alunos} alunos)"
+                    f"quantidade diverge da receita planejada ({quantidade_original} {item_req.medida_caseira} para {qtd_alunos} alunos)"
                 raise HTTPException(
                     status_code=400,
                     detail=f"Item '{item.nome}' {motivo} — justificativa obrigatória",
                 )
 
-        preparados.append((item, item_req, qtd_oficial, receita_item, quantidade_esperada))
+        preparados.append((item, item_req, qtd_oficial, quantidade_original))
 
     refeicao = models.Refeicao(
-        tipo_refeicao=dados.tipo_refeicao,
+        tipo_refeicao=tipo,
         id_usuario=usuario.id,
-        qtd_alunos=dados.qtd_alunos,
+        qtd_alunos=qtd_alunos,
         planejamento_id=dados.planejamento_id,
+        slot=dados.slot,
+        nome_extra=dados.nome_extra.strip() if dados.nome_extra else None,
     )
     db.add(refeicao)
     db.flush()  # garante o id antes de gravar os itens
 
-    for item, item_req, qtd_oficial, receita_item, quantidade_esperada in preparados:
+    for item, item_req, qtd_oficial, quantidade_original in preparados:
         item.saldo_atual -= qtd_oficial
         db.add(models.RefeicaoItem(
             refeicao_id=refeicao.id,
             item_id=item.id,
-            quantidade_original=quantidade_esperada if quantidade_esperada is not None else item_req.quantidade,
+            quantidade_original=quantidade_original,
             quantidade_ajustada=item_req.quantidade,
             medida_caseira=item_req.medida_caseira,
             justificativa=item_req.justificativa,
@@ -979,7 +1516,7 @@ def lancar_refeicao_v2(
 
     db.commit()
     db.refresh(refeicao)
-    return {"id": refeicao.id, "mensagem": f"Refeição servida a {dados.qtd_alunos} alunos! Estoque abatido com sucesso."}
+    return {"id": refeicao.id, "mensagem": f"Refeição servida a {qtd_alunos} alunos! Estoque abatido com sucesso."}
 
 
 @app.get("/refeicoes")
@@ -996,10 +1533,22 @@ def historico_refeicoes(
     resultado = []
     for r in refeicoes:
         itens = db.query(models.RefeicaoItem).filter(models.RefeicaoItem.refeicao_id == r.id).all()
+        # 08-11: nome exibido da refeição — avulsa usa o nome informado pela
+        # cozinheira; planejada usa o prato do planejamento (nunca o nome extra).
+        nome_refeicao = r.nome_extra
+        if r.planejamento_id:
+            plan = db.query(models.Planejamento).filter(models.Planejamento.id == r.planejamento_id).first()
+            if plan:
+                card = db.query(models.CardapioItem).filter(models.CardapioItem.id == plan.cardapio_item_id).first()
+                nome_refeicao = card.nome_refeicao if card else None
         resultado.append({
             "id": r.id,
             "data_hora": r.data_hora.isoformat(),
             "tipo_refeicao": r.tipo_refeicao,
+            "slot": r.slot,
+            "extra": r.planejamento_id is None,
+            "nome_refeicao": nome_refeicao,
+            "nome_extra": r.nome_extra,
             "qtd_alunos": r.qtd_alunos,
             "id_usuario": r.id_usuario,
             "planejamento_id": r.planejamento_id,
@@ -1020,29 +1569,44 @@ def historico_refeicoes(
 
 
 def _status_refeicoes_do_dia(db: Session, dia: date) -> list:
-    """Status (pendente/confirmado) de cada tipo de refeição no dia informado."""
+    """Status (pendente/confirmado) por SLOT do dia informado (obs #7).
+
+    Iteração pelos 4 slots de `SLOTS_PLANEJAMENTO`; para cada slot, a refeição
+    do dia casa por `r.slot == slot`. Legado (slot NULL) cai no fallback por
+    `tipo_refeicao` derivado do slot quando nenhuma outra refeição ocupou o slot.
+    Refeição avulsa (sem planejamento) marca `extra: true` — ocupa o slot.
+    """
     refeicoes = db.query(models.Refeicao).filter(
         func.date(models.Refeicao.data_hora) == dia.isoformat()
     ).all()
 
     status = []
-    for tipo in TIPOS_REFEICAO_VALIDOS:
-        ref = next((r for r in refeicoes if r.tipo_refeicao == tipo), None)
+    for slot in SLOTS_PLANEJAMENTO:
+        ref = next((r for r in refeicoes if r.slot == slot), None)
+        if ref is None:
+            # Legado (slot NULL — avulsas sem derivação): casa pelo tipo derivado
+            ref = next(
+                (r for r in refeicoes if r.slot is None and r.tipo_refeicao == _derivar_tipo_slot(slot)),
+                None,
+            )
         if ref:
-            prato = None
+            # 08-11: avulsa exibe o nome informado pela cozinheira no campo
+            # prato; planejada exibe o prato do planejamento vinculado.
+            prato = ref.nome_extra
             if ref.planejamento_id:
                 plan = db.query(models.Planejamento).filter(models.Planejamento.id == ref.planejamento_id).first()
                 if plan:
                     card = db.query(models.CardapioItem).filter(models.CardapioItem.id == plan.cardapio_item_id).first()
                     prato = card.nome_refeicao if card else None
             status.append({
-                "tipo_refeicao": tipo,
+                "slot": slot,
                 "status": "confirmado",
+                "extra": ref.planejamento_id is None,
                 "prato": prato,
                 "alunos": ref.qtd_alunos,
             })
         else:
-            status.append({"tipo_refeicao": tipo, "status": "pendente", "prato": None, "alunos": None})
+            status.append({"slot": slot, "status": "pendente", "extra": False, "prato": None, "alunos": None})
     return status
 
 
@@ -1063,7 +1627,7 @@ def dashboard_admin(
 ):
     hoje = date.today()
 
-    # 1. Estoque
+    # 1. Estoque — críticos pelo limiar individual do item, na unidade de exibição (D-02/D-04)
     itens = db.query(models.Item).all()
     criticos = [
         {
@@ -1072,9 +1636,10 @@ def dashboard_admin(
             "saldo_atual": i.saldo_atual / (i.fator_conversao or 1.0),
             "unidade_oficial": i.unidade_oficial,
             "fator_conversao": i.fator_conversao or 1.0,
+            "limiar": i.limiar or 5.0,
         }
         for i in itens
-        if (i.saldo_atual / (i.fator_conversao or 1.0)) < LIMIAR_BAIXO_ESTOQUE
+        if (i.saldo_atual / (i.fator_conversao or 1.0)) < (i.limiar or 5.0)
     ]
 
     # 2. Refeições de hoje (mesmo formato de /refeicoes/hoje)
@@ -1115,13 +1680,30 @@ def dashboard_admin(
 
 # --- CARDÁPIO PÚBLICO (sem autenticação) ---
 
+def _slot_fallback_por_tipo(tipo_refeicao: str) -> str | None:
+    """Fallback de slot para avulsas legadas (slot NULL): primeiro slot canônico
+    cujo tipo derivado casa — mesmo critério do status por slot (obs #7)."""
+    for slot in SLOTS_PLANEJAMENTO:
+        if _derivar_tipo_slot(slot) == tipo_refeicao:
+            return slot
+    return None
+
+
 @app.get("/publico/cardapio")
 def cardapio_publico(data: date | None = None, db: Session = Depends(get_db)):
-    """Cardápio do dia para exibição pública (telas da escola), sem autenticação."""
+    """Cardápio do dia para exibição pública (telas da escola), sem autenticação.
+
+    08-11: resposta em LISTA, ordenada pela ordem canônica dos quatro slots.
+    Cada entrada traz `tipo_refeicao` (rótulo do momento de serviço = slot),
+    `nome_refeicao`, `slot`, `extra` e `ingredientes`. Refeições planejadas e
+    extras do mesmo slot COEXISTEM (sem deduplicar): a planejada vem primeiro,
+    depois as extras por id. T-08-18: apenas nome e ingredientes — sem usuário,
+    justificativas ou dados de auditoria. T-08-19: escopo limitado à data.
+    """
     data_ref = data or date.today()
     ativos = _planejamento_ativo(db, data_ref)
 
-    resultado = []
+    entradas: list[dict] = []
     for (dia_semana, tipo), entrada in sorted(ativos.items(), key=lambda kv: kv[0][1]):
         if dia_semana != data_ref.weekday():
             continue
@@ -1140,12 +1722,50 @@ def cardapio_publico(data: date | None = None, db: Session = Depends(get_db)):
                     "quantidade": r.quantidade,
                     "medida_caseira": r.medida_caseira,
                 })
-        resultado.append({
+        entradas.append({
             "tipo_refeicao": tipo,
             "nome_refeicao": prato.nome_refeicao if prato else None,
+            "slot": tipo,
+            "extra": False,
             "ingredientes": ingredientes,
         })
-    return resultado
+
+    # Refeições extras da data (08-11): nome próprio informado pela cozinheira,
+    # slot do lançamento e itens efetivamente servidos como ingredientes.
+    # Avulsas legadas sem slot caem no fallback por tipo derivado; sem slot
+    # derivável, não publicam (fora dos quatro momentos de serviço).
+    extras = db.query(models.Refeicao).filter(
+        func.date(models.Refeicao.data_hora) == data_ref.isoformat(),
+        models.Refeicao.planejamento_id.is_(None),
+    ).order_by(models.Refeicao.id).all()
+    for extra in extras:
+        slot = extra.slot or _slot_fallback_por_tipo(extra.tipo_refeicao)
+        if slot is None:
+            continue
+        itens = db.query(models.RefeicaoItem).filter(
+            models.RefeicaoItem.refeicao_id == extra.id
+        ).all()
+        ingredientes = []
+        for ri in itens:
+            item = db.query(models.Item).filter(models.Item.id == ri.item_id).first()
+            ingredientes.append({
+                "item_nome": item.nome if item else None,
+                "quantidade": ri.quantidade_ajustada,
+                "medida_caseira": ri.medida_caseira,
+            })
+        entradas.append({
+            "tipo_refeicao": slot,
+            "nome_refeicao": extra.nome_extra,
+            "slot": slot,
+            "extra": True,
+            "ingredientes": ingredientes,
+        })
+
+    # Ordenação canônica: slot em SLOTS_PLANEJAMENTO; dentro do slot a planejada
+    # (extra=False) vem primeiro e as extras por id (ordem de inserção estável).
+    ordem_slots = {s: i for i, s in enumerate(SLOTS_PLANEJAMENTO)}
+    entradas.sort(key=lambda e: (ordem_slots.get(e["slot"], len(SLOTS_PLANEJAMENTO)), e["extra"]))
+    return entradas
 
 
 # =========================================================================

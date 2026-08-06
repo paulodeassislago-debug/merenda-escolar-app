@@ -181,6 +181,42 @@
   color: var(--verde-escuro);
 }
 
+/* 08-11: múltiplas refeições no mesmo slot (planejada + extra) — blocos
+   separados por borda suave; a extra ganha nome próprio + tag EXTRA. */
+.publico-entradas {
+  display: grid;
+  gap: 12px;
+}
+
+.publico-entrada {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.publico-entrada + .publico-entrada {
+  border-top: 1px solid var(--borda);
+  padding-top: 12px;
+}
+
+/* Tag EXTRA do cardápio público — mesma métrica da cozinha, tokens existentes */
+.publico-tag-extra {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background-color: var(--amarelo);
+  color: var(--texto);
+  border: 1px solid var(--verde-escuro);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .publico-sem-receita {
   margin: 0;
   color: var(--texto-suave);

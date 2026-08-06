@@ -12,8 +12,6 @@ export const UNIDADES_SUGERIDAS = ['KG', 'L', 'Un', 'Pacote', 'Penca', 'Caixa', 
 // backend: 0=segunda…6=domingo; JS Date.getDay(): 0=domingo — converter com (jsDay + 6) % 7
 export const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'] as const;
 
-export const LIMIAR_BAIXO_ESTOQUE = 5.0;
-
 export const PERFIL_ROTULOS: Record<Perfil, string> = {
   admin: 'Admin',
   secretaria: 'Secretaria',

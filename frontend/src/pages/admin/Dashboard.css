@@ -122,6 +122,12 @@
   color: var(--texto);
 }
 
+/* obs #7: refeição avulsa ocupa o slot — tag EXTRA (--verde-escuro sobre --verde-tint) */
+.badge-extra {
+  background-color: var(--verde-tint);
+  color: var(--verde-escuro);
+}
+
 /* Itens críticos */
 .dashboard-lista {
   list-style: none;

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35260811111111000111550010000000011234567890" versao="4.00">
+      <ide>
+        <cUF>29</cUF>
+        <cNF>12345678</cNF>
+        <natOp>VENDA</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>112</nNF>
+        <dhEmi>2026-08-05T09:15:00-03:00</dhEmi>
+        <tpNF>1</tpNF>
+      </ide>
+      <emit>
+        <CNPJ>11111111000111</CNPJ>
+        <xNome>Distribuidora de Alimentos Santa Clara</xNome>
+        <xFant>Distribuidora Santa Clara</xFant>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>001</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>ARROZ TIPO 1</xProd>
+          <NCM>1006.30.21</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>KG</uCom>
+          <qCom>100.0000</qCom>
+          <vUnCom>5.9000000000</vUnCom>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>002</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>CARNE MOIDA PATINHO</xProd>
+          <NCM>0202.30.00</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>KG</uCom>
+          <qCom>25.0000</qCom>
+          <vUnCom>32.5000000000</vUnCom>
+        </prod>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>003</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>MUSC BOV</xProd>
+          <NCM>0201.30.00</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>KG</uCom>
+          <qCom>40.0000</qCom>
+          <vUnCom>29.0000000000</vUnCom>
+        </prod>
+      </det>
+    </infNFe>
+  </NFe>
+</nfeProc>

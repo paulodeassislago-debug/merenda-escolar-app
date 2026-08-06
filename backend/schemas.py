@@ -46,6 +46,8 @@ class ItemCreate(BaseModel):
     saldo_atual: float = 0.0
     unidade_interna: str | None = None
     fator_conversao: float | None = None
+    # limiar: validação explícita no handler (D-03 exige 400, não 422) — sem Field(gt=0)
+    limiar: float = Field(5.0)
 
 
 class ItemUpdate(BaseModel):
@@ -54,6 +56,7 @@ class ItemUpdate(BaseModel):
     saldo_atual: float | None = None
     unidade_interna: str | None = None
     fator_conversao: float | None = None
+    limiar: float | None = Field(default=None)
 
 
 class ItemResponse(BaseModel):
@@ -63,6 +66,7 @@ class ItemResponse(BaseModel):
     saldo_atual: float
     unidade_interna: str
     fator_conversao: float
+    limiar: float
 
 
 # --- Conversões ---
@@ -140,7 +144,9 @@ class PlanejamentoResponse(BaseModel):
 
 class EntregaItemRequest(BaseModel):
     item_id: int
-    quantidade: float
+    # CR-01: sem limite inferior, um "recebido" negativo reduziria o estoque —
+    # mesmo padrão de RefeicaoItemRequest (R13). Zero é legítimo para linhas 'excluído'.
+    quantidade: float = Field(ge=0)
     acao: str  # "recebido" | "alterado" | "excluído"
     unidade: str | None = None
     fator_conversao: float | None = None
@@ -148,7 +154,43 @@ class EntregaItemRequest(BaseModel):
 
 
 class EntregaCreate(BaseModel):
+    origem: str  # "xml" | "manual" — validado no handler
+    data_entrega: date  # obrigatória (D-05)
+    fornecedor_id: int  # obrigatório (D-05)
+    nota_numero: str | None = None
+    observacoes: str | None = None
     itens: list[EntregaItemRequest] = Field(min_length=1)
+
+
+# --- Fornecedores ---
+
+class FornecedorCreate(BaseModel):
+    nome: str
+    cnpj: str | None = None
+
+
+class FornecedorResponse(BaseModel):
+    id: int
+    nome: str
+    cnpj: str | None
+
+
+# --- Alunos por período (08-07 — configuração admin-only, D-14/D-15) ---
+
+class AlunosPorPeriodoUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    manha: int = Field(gt=0)
+    tarde: int = Field(gt=0)
+    noite: int = Field(gt=0)
+
+
+class AlunosPorPeriodoResponse(BaseModel):
+    manha: int
+    tarde: int
+    noite: int
+    updated_at: str | None
+    updated_by: int | None
 
 
 # --- Refeições (Fase 3 — com auditoria de ajustes) ---
@@ -165,7 +207,12 @@ class RefeicaoItemRequest(BaseModel):
 class RefeicaoCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tipo_refeicao: str
-    qtd_alunos: int = Field(gt=0)
+    # R-5/D-16b: payload por slot — backend deriva tipo e qtd_alunos da
+    # configuração vigente (tipo_refeicao/qtd_alunos removidos na revisão MEAL-02)
+    slot: str
     planejamento_id: int | None = None
+    # 08-11: nome da refeição extraordinária — obrigatório (não vazio) em
+    # lançamentos avulsos (planejamento_id None); rejeitado em planejadas.
+    # Limite alinhado ao campo de texto do frontend (T-08-17).
+    nome_extra: str | None = Field(default=None, max_length=120)
     itens: list[RefeicaoItemRequest] = Field(min_length=1)

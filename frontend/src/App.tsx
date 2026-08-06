@@ -10,6 +10,7 @@ import CardapioPublico from './pages/CardapioPublico';
 import Dashboard from './pages/admin/Dashboard';
 import Usuarios from './pages/admin/Usuarios';
 import Itens from './pages/admin/Itens';
+import Alunos from './pages/admin/Alunos';
 import Cardapio from './pages/admin/Cardapio';
 import Receitas from './pages/admin/Receitas';
 import Planejamento from './pages/admin/Planejamento';
@@ -51,6 +52,16 @@ function App() {
               <ProtectedRoute perfis={['admin']}>
                 <Layout>
                   <Itens />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/alunos"
+            element={
+              <ProtectedRoute perfis={['admin']}>
+                <Layout>
+                  <Alunos />
                 </Layout>
               </ProtectedRoute>
             }

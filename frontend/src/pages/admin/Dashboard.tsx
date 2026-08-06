@@ -90,12 +90,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Refeições de hoje */}
+          {/* Refeições de hoje (obs #7: contrato por slot — 4 slots) */}
           <section className="dashboard-secao">
             <h2>Refeições de hoje</h2>
             {dados.refeicoes_hoje.map((ref) => (
-              <div key={ref.tipo_refeicao} className="refeicao-linha">
-                <span className="refeicao-tipo">{ref.tipo_refeicao}</span>
+              <div key={ref.slot} className="refeicao-linha">
+                <span className="refeicao-tipo">{ref.slot}</span>
                 {ref.prato ? (
                   <span>{ref.prato}</span>
                 ) : (
@@ -107,6 +107,9 @@ export default function Dashboard() {
                   <span className="badge badge-confirmado">Confirmado</span>
                 ) : (
                   <span className="badge badge-pendente">Pendente</span>
+                )}
+                {ref.extra && (
+                  <span className="badge badge-extra">EXTRA</span>
                 )}
                 {ref.alunos !== null && <span>{ref.alunos} alunos</span>}
               </div>

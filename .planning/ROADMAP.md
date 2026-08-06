@@ -13,7 +13,7 @@ Construir e finalizar o sistema web de gestao da cozinha escolar em incrementos 
 - [x] **Phase 5: Paginas Admin (Frontend)** - Sete paginas administrativas, entregas XML e portoes de saida.
 - [x] **Phase 6: Cozinha + Gestao (Frontend)** - Painel da cozinheira e painel da secretaria com dados reais; implementação, segurança e UAT concluídos.
 - [x] **Phase 7: Finalizacao** - Cardapio publico, testes manuais completos e verificacao ponta a ponta. (completed 2026-08-04)
-- [ ] **Phase 8: Improvements** - Melhorias de limiar por item, cadastro inline de itens XML e sugestoes inteligentes de correspondencia.
+- [ ] **Phase 8: Improvements** - Limiar de estoque por item, entregas com origem/fornecedor e auditoria diferenciada, cadastro inline de itens XML, alunos fixos por período, projeção cumulativa de estoque no planejamento e sugestões de correspondência.
 
 ## Phase Details
 
@@ -152,17 +152,41 @@ Plans:
 
 ### Phase 8: Improvements
 
-**Goal**: Reduzir alertas de estoque inadequados, evitar interrupcao no recebimento de itens novos e diminuir duplicidades causadas por nomes de fornecedores.
+**Goal**: Reduzir alertas de estoque inadequados, evitar interrupcao no recebimento de itens novos, diminuir duplicidades causadas por nomes de fornecedores e ajustar os fluxos operacionais de entregas e refeicoes as regras reais da escola.
 **Depends on**: Phase 7
-**Requirements**: IMP-01, IMP-02, IMP-03, IMP-04, IMP-05
+**Requirements**: IMP-01, IMP-02, IMP-03, IMP-04, IMP-05, IMP-06, IMP-07, IMP-08, IMP-09, IMP-10, IMP-11 (revisoes de DELIV-05, DELIV-06 e MEAL-02)
 **Success Criteria**:
 
   1. Cada item pode ter limiar próprio, com fallback compatível de 5 e alertas calculados na unidade de exibição.
   2. Item XML não reconhecido pode ser cadastrado dentro do fluxo de Entregas e vinculado à linha sem perder o rascunho.
   3. Nomes de fornecedores são normalizados e produzem sugestões explicáveis, sem associação automática silenciosa.
-  4. Os fluxos existentes de entrega, auditoria, conversão e baixa permanecem íntegros.
+  4. Toda entrega tem origem, data e fornecedor; manual exige observações e XML exige número da nota com justificativa por item.
+  5. O admin configura alunos por período; a cozinheira lança refeições sem digitar alunos e a receita escala pelo total do slot.
+  6. O planejamento avisa (sem bloquear) os itens que faltarão com projeção cumulativa da semana; o lançamento continua bloqueando.
+  7. Os fluxos existentes de entrega, auditoria, conversão e baixa permanecem íntegros (regressões manuais e automatizadas).
 
-**Plans**: TBD — documentada como backlog planejado, sem execução nesta etapa.
+**Plans**: 9 planos (contexto capturado em 2026-08-05; planejamento concluído em 2026-08-05)
+
+**Wave 1** *(independente — paralelo)*
+- [ ] 08-01-PLAN.md — Fundação backend: models, migração SQLite, schemas, fornecedores, contratos TS
+- [ ] 08-04-PLAN.md — Motor de matching determinístico (matching.ts)
+
+**Wave 2** *(bloqueado pela Wave 1 — main.py)*
+- [ ] 08-02-PLAN.md — Limiar individual: backend (validação 400, dashboard) + Itens.tsx + DashboardGestao
+
+**Wave 3** *(bloqueado pela Wave 2 — main.py)*
+- [ ] 08-03-PLAN.md — Entregas backend: regras por origem, fornecedores, POST /itens/inline
+
+**Wave 4** *(bloqueado pelas Waves 1/3)*
+- [ ] 08-05-PLAN.md — Entregas frontend: origem/data/fornecedor (autocomplete+inline), pré-preenchimento XML
+- [ ] 08-07-PLAN.md — Backend alunos por período + lançamento por slot + projeção cumulativa
+
+**Wave 5** *(bloqueado pelas Waves 4)*
+- [ ] 08-06-PLAN.md — Cadastro inline de item + sugestões de linha XML
+- [ ] 08-08-PLAN.md — Página admin Alunos + PainelCozinha sem digitação de alunos
+- [ ] 08-09-PLAN.md — Projeção na UI: badge, painel colapsável e banner
+
+**Cross-cutting constraints:** auditoria por origem em entregas (08-03/08-05); cozinheira não digita alunos — total derivado por slot (08-07/08-08); configuração de alunos ausente é estado explícito, não erro (08-08/08-09); planejamento não bloqueia por estoque — lançamento continua bloqueando (08-07/08-09).
 **Canonical refs**: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/phases/08-improvements/08-CONTEXT.md`, `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/TESTING.md`
 
 ## Progress

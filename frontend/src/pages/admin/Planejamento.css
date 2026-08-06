@@ -36,15 +36,60 @@
   font-size: 0.875rem;
 }
 
-/* Container da grade (overflow horizontal se necessário) */
+/* Prévia reativa: informa o refetch sem bloquear a grade ou o salvamento. */
+.planejamento-projecao-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: -0.75rem 0 1rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+.planejamento-projecao-status-erro {
+  color: var(--erro);
+}
+
+.planejamento-projecao-status .btn-secundario {
+  margin-left: 0.25rem;
+}
+
+.planejamento-projecao-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  border: 2px solid var(--borda);
+  border-top-color: var(--verde-vivo);
+  border-radius: 50%;
+  animation: planejamento-projecao-girar 0.8s linear infinite;
+}
+
+@keyframes planejamento-projecao-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planejamento-projecao-spinner {
+    animation: none;
+  }
+}
+
+/* Container da grade (overflow horizontal controlado em telas estreitas —
+   o banner/painel de projeção não participam da largura da grade) */
 .planejamento-grade-container {
   overflow-x: auto;
   margin-bottom: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Grade principal */
 .planejamento-grade {
   table-layout: fixed;
+  width: 100%;
   min-width: 640px;
 }
 
@@ -84,11 +129,32 @@
 /* Células com select */
 .planejamento-celula {
   padding: 0.25rem !important;
+  min-width: 0;
+}
+
+/* 08-11: estrutura interna estável — select + área de aviso em coluna, com
+   altura reservada para o badge em TODAS as células (presente ou não).
+   `min-width: 0` permite que o select ocupe a largura disponível sem estourar
+   a célula; o badge quebra dentro da célula (overflow-wrap). */
+.planejamento-celula-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+}
+
+.planejamento-celula-aviso {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 32px; /* reserva o espaço do badge mesmo sem ruptura */
 }
 
 /* Select dentro da célula */
 .planejamento-select {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--borda);
   border-radius: var(--raio);
   padding: 0.5rem;
@@ -133,4 +199,207 @@
   font-size: 0.875rem;
   font-weight: 600;
   text-align: right;
+}
+
+/* ============ Projeção da semana (D-19) ============ */
+
+/* Badge de déficit projetado na célula (--erro sobre --erro-fundo, AA).
+   08-11: quebra controlada dentro da célula (overflow-wrap/white-space),
+   sem margem própria — o espaçamento vem da coluna .planejamento-celula-aviso. */
+.badge-ruptura {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--raio);
+  background-color: var(--erro-fundo);
+  color: var(--erro);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* Painel colapsável (disclosure nativo, padrão Fase 7) */
+.painel-projecao {
+  margin: 1.5rem 0; /* --lg = 24px */
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background-color: var(--branco);
+  box-shadow: var(--sombra-card);
+}
+
+.painel-projecao > summary {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--verde-escuro);
+  user-select: none;
+}
+
+.painel-projecao-corpo {
+  padding: 0 1rem 1rem;
+}
+
+.painel-projecao-aviso {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+.painel-projecao-resumo {
+  margin: 0 0 0.75rem;
+  color: var(--texto);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.painel-projecao-tabela-container {
+  overflow-x: auto;
+}
+
+.painel-projecao-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.painel-projecao-tabela th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  border-bottom: 1px solid var(--borda);
+  padding: 0.5rem 0.75rem;
+  white-space: nowrap;
+}
+
+.painel-projecao-tabela td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--borda);
+  color: var(--texto);
+  vertical-align: top;
+}
+
+.painel-projecao-tabela tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Ruptura prevista: vermelho (--erro sobre --erro-fundo) */
+.painel-projecao-tabela .linha-ruptura {
+  background-color: var(--erro-fundo);
+}
+
+.painel-projecao-tabela .linha-ruptura td {
+  color: var(--erro);
+  font-weight: 600;
+}
+
+/* Sobra: verde (--verde-escuro sobre --verde-tint) */
+.painel-projecao-tabela .linha-sobra {
+  background-color: var(--verde-tint);
+}
+
+.painel-projecao-tabela .linha-sobra td {
+  color: var(--verde-escuro);
+}
+
+/* Itens sem conversão cadastrada: não avaliável (--texto-suave) */
+.painel-projecao-tabela .linha-nao-avaliavel td {
+  color: var(--texto-suave);
+}
+
+/* Banner não-bloqueante pós-save */
+.banner-aviso {
+  margin: 1.5rem 0; /* --lg = 24px */
+  padding: 1rem; /* --md = 16px */
+  border: 1px solid var(--erro);
+  border-left-width: 4px;
+  border-radius: var(--raio);
+  background-color: var(--erro-fundo);
+}
+
+.banner-aviso-titulo {
+  margin: 0 0 0.5rem;
+  color: var(--erro);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.banner-aviso-lista {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+  color: var(--erro);
+  font-size: 0.875rem;
+}
+
+/* 08-11: nomes longos quebram sem deslocar o banner nem a grade */
+.banner-aviso-lista li {
+  overflow-wrap: anywhere;
+}
+
+.banner-aviso-acoes {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Botões (padrão das páginas admin — tokens; ver desvio 08-09) */
+.btn-primario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  background-color: var(--verde-escuro);
+  color: var(--branco);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: var(--raio);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primario:hover:not(:disabled) {
+  background-color: var(--verde-escuro-hover);
+}
+
+.btn-primario:focus-visible {
+  outline: 2px solid var(--verde-vivo);
+  outline-offset: 2px;
+}
+
+.btn-primario:disabled {
+  background-color: var(--verde-tint);
+  color: var(--texto-suave);
+  cursor: not-allowed;
+}
+
+.btn-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  background-color: var(--branco);
+  color: var(--verde-escuro);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--verde-escuro);
+  border-radius: var(--raio);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-secundario:hover:not(:disabled) {
+  background-color: var(--verde-tint);
+}
+
+.btn-secundario:focus-visible {
+  outline: 2px solid var(--verde-vivo);
+  outline-offset: 2px;
 }
