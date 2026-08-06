@@ -110,7 +110,7 @@ These improvements are intentionally scheduled after Phase 7. They must not chan
 
 ### Production Readiness
 
-- **PROD-01**: Migrar o banco de desenvolvimento SQLite para PostgreSQL com Alembic.
+- [x] **PROD-01**: Migrar o banco de desenvolvimento SQLite para PostgreSQL com Alembic. **2026-08-05** — Alembic + driver psycopg adicionados; migração inicial `b95009c1442e` validada em PostgreSQL 16; startup executa `alembic upgrade head` quando `DATABASE_URL` não é sqlite; bootstrap do primeiro admin via `scripts/bootstrap_admin.py` (schema vazio). Deploy Coolify pendente de configuração.
 - **PROD-02**: Criar pipeline CI/CD para backend, frontend, testes e deploy.
 - **PROD-03**: Adicionar testes E2E automatizados com Playwright.
 - **PROD-04**: Validar XML NF-e formalmente contra schema fiscal quando houver requisito operacional para isso.

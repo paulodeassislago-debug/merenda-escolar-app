@@ -19,7 +19,7 @@
 - Build (includes typecheck): `npm run build`
 
 ## Architecture
-- **Database**: SQLite (`backend/merenda.db`), auto-created on startup by `models.Base.metadata.create_all`. Note: `DATABASE_URL` is relative (`sqlite:///./merenda.db`) — always run Python/uvicorn from `backend/`, never from the repo root, or a stray empty db is created at the root.
+- **Database**: dev/UAT uses SQLite (`backend/merenda.db`), auto-created on startup by `models.Base.metadata.create_all` + `backend/migracao.py`. Production uses PostgreSQL via Alembic migrations (`backend/alembic/`, `alembic upgrade head` runs automatically at startup when `DATABASE_URL` is not sqlite). Note: `DATABASE_URL` default is relative (`sqlite:///./merenda.db`) — always run Python/uvicorn from `backend/`, never from the repo root, or a stray empty db is created at the root. Prod env vars: `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`, `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_PASSWORD` (first admin, run `python -m scripts.bootstrap_admin` from `backend/`).
 - **Routes** (`App.tsx`): `/` (Login), `/cardapio` (public menu), `/admin` (admin), `/cozinha` (kitchen panel), `/gestao` (management dashboard). Authenticated routes are wrapped in `ProtectedRoute` + `Layout`.
 - **Auth**: real JWT login (Phase 4). `src/auth.tsx` (AuthProvider) + `src/auth-context.ts` (context, `useAuth`, `ROTA_POR_PERFIL`) — split to keep the `react-refresh/only-export-components` lint rule clean. Dev users seeded in `backend/merenda.db`: `admin/admin123`, `secretaria/secretaria123`, `cozinheira/cozinheira123`.
 - **Shared types**: `frontend/src/types.ts` — update both frontend and backend Pydantic models when changing data shapes.

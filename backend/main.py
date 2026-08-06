@@ -8,14 +8,33 @@ from sqlalchemy.orm import Session
 import auth
 import models
 import schemas
-from config import CORS_ORIGINS
+from config import CORS_ORIGINS, DATABASE_URL
 from database import engine, SessionLocal
 from migracao import migrar
 
-# Cria o banco e as tabelas automaticamente se não existirem
-models.Base.metadata.create_all(bind=engine)
-# Aplica colunas novas em tabelas existentes (idempotente, sem Alembic)
-migrar(engine)
+
+def _inicializar_banco() -> None:
+    """Inicializa o schema conforme o ambiente:
+
+    - SQLite (dev/UAT): `create_all` + `migracao.py` (padrão histórico).
+    - PostgreSQL (produção): migrações versionadas do Alembic (`upgrade head`),
+      idempotente e seguro para rodar a cada startup do container.
+    """
+    if DATABASE_URL.startswith("sqlite"):
+        models.Base.metadata.create_all(bind=engine)
+        migrar(engine)
+        return
+
+    from alembic import command
+    from alembic.config import Config
+    from pathlib import Path
+
+    ini_path = Path(__file__).resolve().parent / "alembic.ini"
+    cfg = Config(str(ini_path))
+    command.upgrade(cfg, "head")
+
+
+_inicializar_banco()
 
 app = FastAPI(title="Sistema de Gestão da Cozinha Escolar - PNAE")
 
