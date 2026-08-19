@@ -15,6 +15,9 @@ COPY . .
 EXPOSE 8000
 
 # Comando para ligar o motor do FastAPI.
-# Se BOOTSTRAP_ADMIN_NAME estiver definido (produção), cria o primeiro admin
-# antes de subir o servidor (idempotente — não altera se já existir).
-CMD ["sh", "-c", "if [ -n \"$BOOTSTRAP_ADMIN_NAME\" ]; then python -m scripts.bootstrap_admin; fi && exec uvicorn main:app --host 0.0.0.0 --port 8000"]
+# 1. `alembic upgrade head` primeiro: num banco vazio o bootstrap consulta a
+#    tabela usuarios, que só existe depois da migração (idempotente).
+# 2. Se BOOTSTRAP_ADMIN_NAME estiver definido (produção), cria o primeiro admin
+#    (idempotente — não altera se já existir).
+# 3. Sobe o servidor; o startup do main.py roda upgrade head de novo (no-op).
+CMD ["sh", "-c", "alembic upgrade head && if [ -n \"$BOOTSTRAP_ADMIN_NAME\" ]; then python -m scripts.bootstrap_admin; fi && exec uvicorn main:app --host 0.0.0.0 --port 8000"]
