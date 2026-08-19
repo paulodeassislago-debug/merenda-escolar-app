@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+merenda.db
+merenda.db.bak-*
+.git/
